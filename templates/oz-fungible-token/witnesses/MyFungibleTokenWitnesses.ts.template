@@ -1,0 +1,86 @@
+/**
+ * MyFungibleToken Witnesses
+ * 
+ * Witness functions provide external data to the contract during execution.
+ * For token contracts, witnesses typically handle private state generation.
+ */
+
+import { Ledger } from '@midnight-ntwrk/compact-runtime';
+
+/**
+ * Private state for MyFungibleToken contract
+ * This represents the internal state that's not visible on the ledger
+ */
+export class MyFungibleTokenPrivateState {
+  constructor() {
+    // Private state initialization
+    // For fungible tokens, most state is public on the ledger
+    // Private state could include things like:
+    // - Cached balances for performance
+    // - Private transaction metadata
+    // - Off-chain computed values
+  }
+
+  /**
+   * Generate initial private state
+   */
+  static generate(): MyFungibleTokenPrivateState {
+    return new MyFungibleTokenPrivateState();
+  }
+}
+
+/**
+ * Witness functions for MyFungibleToken contract
+ * These functions are called during contract execution to provide external data
+ */
+export function MyFungibleTokenWitnesses() {
+  return {
+    /**
+     * Witness for getting current ledger state
+     * This is called when the contract needs to read ledger data
+     */
+    ledger_witness: (privateState: MyFungibleTokenPrivateState): Ledger<any> => {
+      // Return ledger state
+      // In testing, this will be provided by the simulator
+      // In production, this will be provided by the Midnight runtime
+      return {} as Ledger<any>;
+    },
+
+    /**
+     * Witness for transaction context
+     * Provides information about the current transaction
+     */
+    transaction_witness: (privateState: MyFungibleTokenPrivateState) => {
+      return {
+        timestamp: Date.now(),
+        blockHeight: 0,
+      };
+    },
+
+    /**
+     * Witness for private state updates
+     * Called when contract execution modifies private state
+     */
+    update_private_state_witness: (
+      privateState: MyFungibleTokenPrivateState,
+      newState: any
+    ): MyFungibleTokenPrivateState => {
+      // Update and return new private state
+      return privateState;
+    },
+  };
+}
+
+/**
+ * Helper function to create initial witnesses
+ */
+export function createWitnesses() {
+  return MyFungibleTokenWitnesses();
+}
+
+/**
+ * Helper function to create initial private state
+ */
+export function createPrivateState(): MyFungibleTokenPrivateState {
+  return MyFungibleTokenPrivateState.generate();
+}

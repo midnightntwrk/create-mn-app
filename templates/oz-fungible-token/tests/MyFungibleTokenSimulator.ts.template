@@ -1,0 +1,247 @@
+/**
+ * MyFungibleToken Simulator
+ * 
+ * This simulator follows OpenZeppelin's createSimulator pattern
+ * for testing Compact contracts locally without deployment.
+ * 
+ * Based on: @openzeppelin-compact/contracts-simulator
+ */
+
+import { createSimulator, type BaseSimulatorOptions } from '@openzeppelin-compact/contracts-simulator';
+import { encodeCoinPublicKey } from '@midnight-ntwrk/compact-runtime';
+import {
+  MyFungibleTokenPrivateState,
+  MyFungibleTokenWitnesses,
+} from '../witnesses/MyFungibleTokenWitnesses';
+
+// Import compiled contract (this will be available after compilation)
+// Note: Path will be correct after 'npm run compile'
+import {
+  ledger,
+  Contract as MyFungibleToken,
+} from '../contracts/managed/MyFungibleToken/contract/index.cjs';
+
+/**
+ * Constructor arguments for MyFungibleToken
+ * Matches the contract constructor signature
+ */
+type MyFungibleTokenArgs = readonly [
+  name: Uint8Array,        // Token name (Opaque<"string">)
+  symbol: Uint8Array,      // Token symbol (Opaque<"string">)
+  decimals: bigint,        // Decimals (Uint<8>)
+  initialSupply: bigint,   // Initial supply (Uint<128>)
+  recipient: any,          // Recipient address (Either<ZswapCoinPublicKey, ContractAddress>)
+  owner: any,              // Owner address (Either<ZswapCoinPublicKey, ContractAddress>)
+];
+
+/**
+ * Base simulator created using OpenZeppelin's createSimulator factory
+ */
+const MyFungibleTokenSimulatorBase = createSimulator<
+  MyFungibleTokenPrivateState,
+  ReturnType<typeof ledger>,
+  ReturnType<typeof MyFungibleTokenWitnesses>,
+  MyFungibleTokenArgs
+>({
+  contractFactory: (witnesses) =>
+    new MyFungibleToken<MyFungibleTokenPrivateState>(witnesses),
+  defaultPrivateState: () => MyFungibleTokenPrivateState.generate(),
+  contractArgs: (name, symbol, decimals, initialSupply, recipient, owner) => [
+    name,
+    symbol,
+    decimals,
+    initialSupply,
+    recipient,
+    owner,
+  ],
+  ledgerExtractor: (state) => ledger(state),
+  witnessesFactory: () => MyFungibleTokenWitnesses(),
+});
+
+/**
+ * MyFungibleToken Simulator
+ * 
+ * Provides a convenient API for testing token operations
+ * without deploying to a network.
+ * 
+ * @example
+ * ```typescript
+ * const token = new MyFungibleTokenSimulator(
+ *   encodeString("My Token"),
+ *   encodeString("MTK"),
+ *   18n,
+ *   1000000n,
+ *   ownerAddress,
+ *   ownerAddress
+ * );
+ * 
+ * // Mint tokens
+ * token.as(owner).mint(recipient, 100n);
+ * 
+ * // Transfer tokens
+ * token.as(alice).transfer(bob, 50n);
+ * 
+ * // Check balance
+ * const balance = token.balanceOf(alice);
+ * ```
+ */
+export class MyFungibleTokenSimulator extends MyFungibleTokenSimulatorBase {
+  constructor(
+    name: Uint8Array,
+    symbol: Uint8Array,
+    decimals: bigint,
+    initialSupply: bigint,
+    recipient: any,
+    owner: any,
+    options: BaseSimulatorOptions<
+      MyFungibleTokenPrivateState,
+      ReturnType<typeof MyFungibleTokenWitnesses>
+    > = {}
+  ) {
+    super([name, symbol, decimals, initialSupply, recipient, owner], options);
+  }
+
+  // ============= Token Information =============
+
+  /**
+   * Get token name
+   */
+  public name(): Uint8Array {
+    return this.circuits.impure.name();
+  }
+
+  /**
+   * Get token symbol
+   */
+  public symbol(): Uint8Array {
+    return this.circuits.impure.symbol();
+  }
+
+  /**
+   * Get token decimals
+   */
+  public decimals(): bigint {
+    return this.circuits.impure.decimals();
+  }
+
+  /**
+   * Get total supply
+   */
+  public totalSupply(): bigint {
+    return this.circuits.impure.totalSupply();
+  }
+
+  // ============= Balance Operations =============
+
+  /**
+   * Get balance of an address
+   */
+  public balanceOf(account: any): bigint {
+    return this.circuits.impure.balanceOf(account);
+  }
+
+  /**
+   * Get allowance amount
+   */
+  public allowance(owner: any, spender: any): bigint {
+    return this.circuits.impure.allowance(owner, spender);
+  }
+
+  // ============= Transfer Operations =============
+
+  /**
+   * Transfer tokens to another address
+   */
+  public transfer(to: any, value: bigint): boolean {
+    return this.circuits.impure.transfer(to, value);
+  }
+
+  /**
+   * Transfer tokens from one address to another using allowance
+   */
+  public transferFrom(from: any, to: any, value: bigint): boolean {
+    return this.circuits.impure.transferFrom(from, to, value);
+  }
+
+  /**
+   * Approve spender to transfer tokens
+   */
+  public approve(spender: any, value: bigint): boolean {
+    return this.circuits.impure.approve(spender, value);
+  }
+
+  // ============= Owner Operations =============
+
+  /**
+   * Mint new tokens (owner only)
+   */
+  public mint(account: any, value: bigint): void {
+    this.circuits.impure.mint(account, value);
+  }
+
+  /**
+   * Burn tokens (owner only)
+   */
+  public burn(account: any, value: bigint): void {
+    this.circuits.impure.burn(account, value);
+  }
+
+  /**
+   * Get contract owner
+   */
+  public owner(): any {
+    return this.circuits.impure.owner();
+  }
+
+  /**
+   * Transfer ownership (current owner only)
+   */
+  public transferOwnership(newOwner: any): void {
+    this.circuits.impure.transferOwnership(newOwner);
+  }
+
+  /**
+   * Renounce ownership (current owner only)
+   */
+  public renounceOwnership(): void {
+    this.circuits.impure.renounceOwnership();
+  }
+
+  // ============= Pausable Operations =============
+
+  /**
+   * Pause the contract (owner only)
+   */
+  public pause(): void {
+    this.circuits.impure.pause();
+  }
+
+  /**
+   * Unpause the contract (owner only)
+   */
+  public unpause(): void {
+    this.circuits.impure.unpause();
+  }
+
+  /**
+   * Check if contract is paused
+   */
+  public isPaused(): boolean {
+    return this.circuits.impure.isPaused();
+  }
+}
+
+/**
+ * Helper function to create an address for testing
+ */
+export function createTestAddress(seed: string): any {
+  const pk = seed.padStart(64, '0');
+  return { bytes: encodeCoinPublicKey(pk) };
+}
+
+/**
+ * Helper function to encode a string for Opaque<"string"> type
+ */
+export function encodeString(str: string): Uint8Array {
+  return new TextEncoder().encode(str);
+}

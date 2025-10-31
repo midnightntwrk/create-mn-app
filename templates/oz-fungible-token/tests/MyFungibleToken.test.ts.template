@@ -1,0 +1,320 @@
+/**
+ * MyFungibleToken Test Suite
+ * 
+ * Comprehensive tests for the OpenZeppelin Fungible Token implementation
+ * using the @openzeppelin-compact/contracts-simulator pattern
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  MyFungibleTokenSimulator,
+  createTestAddress,
+  encodeString,
+} from './MyFungibleTokenSimulator';
+
+// Test constants
+const TOKEN_NAME = encodeString('My Token');
+const TOKEN_SYMBOL = encodeString('MTK');
+const TOKEN_DECIMALS = 18n;
+const INITIAL_SUPPLY = 1000000n;
+
+// Test addresses
+const OWNER_PK = '0'.repeat(63) + '1';
+const ALICE_PK = '0'.repeat(63) + '2';
+const BOB_PK = '0'.repeat(63) + '3';
+const CHARLIE_PK = '0'.repeat(63) + '4';
+
+const owner = createTestAddress(OWNER_PK);
+const alice = createTestAddress(ALICE_PK);
+const bob = createTestAddress(BOB_PK);
+const charlie = createTestAddress(CHARLIE_PK);
+
+describe('MyFungibleToken - OpenZeppelin ERC-20', () => {
+  let token: MyFungibleTokenSimulator;
+
+  beforeEach(() => {
+    // Deploy fresh token contract before each test
+    token = new MyFungibleTokenSimulator(
+      TOKEN_NAME,
+      TOKEN_SYMBOL,
+      TOKEN_DECIMALS,
+      INITIAL_SUPPLY,
+      owner, // Initial supply recipient
+      owner  // Contract owner
+    );
+  });
+
+  describe('Deployment & Initialization', () => {
+    it('should deploy with correct token metadata', () => {
+      expect(token.name()).toEqual(TOKEN_NAME);
+      expect(token.symbol()).toEqual(TOKEN_SYMBOL);
+      expect(token.decimals()).toBe(TOKEN_DECIMALS);
+    });
+
+    it('should mint initial supply to recipient', () => {
+      const ownerBalance = token.balanceOf(owner);
+      expect(ownerBalance).toBe(INITIAL_SUPPLY);
+    });
+
+    it('should set total supply correctly', () => {
+      expect(token.totalSupply()).toBe(INITIAL_SUPPLY);
+    });
+
+    it('should set contract owner correctly', () => {
+      const contractOwner = token.owner();
+      expect(contractOwner).toEqual(owner);
+    });
+
+    it('should start unpaused', () => {
+      expect(token.isPaused()).toBe(false);
+    });
+  });
+
+  describe('Transfer Operations', () => {
+    it('should transfer tokens between accounts', () => {
+      const transferAmount = 100n;
+      
+      // Owner transfers to Alice
+      token.as(OWNER_PK).transfer(alice, transferAmount);
+      
+      expect(token.balanceOf(alice)).toBe(transferAmount);
+      expect(token.balanceOf(owner)).toBe(INITIAL_SUPPLY - transferAmount);
+    });
+
+    it('should emit correct balances after multiple transfers', () => {
+      // Owner -> Alice: 500
+      token.as(OWNER_PK).transfer(alice, 500n);
+      
+      // Alice -> Bob: 200
+      token.as(ALICE_PK).transfer(bob, 200n);
+      
+      // Bob -> Charlie: 50
+      token.as(BOB_PK).transfer(charlie, 50n);
+      
+      expect(token.balanceOf(owner)).toBe(INITIAL_SUPPLY - 500n);
+      expect(token.balanceOf(alice)).toBe(300n);
+      expect(token.balanceOf(bob)).toBe(150n);
+      expect(token.balanceOf(charlie)).toBe(50n);
+    });
+
+    it('should return true on successful transfer', () => {
+      const result = token.as(OWNER_PK).transfer(alice, 100n);
+      expect(result).toBe(true);
+    });
+
+    it('should handle zero value transfers', () => {
+      const initialBalance = token.balanceOf(owner);
+      token.as(OWNER_PK).transfer(alice, 0n);
+      
+      expect(token.balanceOf(owner)).toBe(initialBalance);
+      expect(token.balanceOf(alice)).toBe(0n);
+    });
+  });
+
+  describe('Approval & TransferFrom', () => {
+    it('should approve spender correctly', () => {
+      const approvalAmount = 500n;
+      
+      token.as(OWNER_PK).approve(alice, approvalAmount);
+      
+      const allowance = token.allowance(owner, alice);
+      expect(allowance).toBe(approvalAmount);
+    });
+
+    it('should allow approved spender to transfer tokens', () => {
+      const approvalAmount = 500n;
+      const transferAmount = 200n;
+      
+      // Owner approves Alice
+      token.as(OWNER_PK).approve(alice, approvalAmount);
+      
+      // Alice transfers from Owner to Bob
+      token.as(ALICE_PK).transferFrom(owner, bob, transferAmount);
+      
+      expect(token.balanceOf(bob)).toBe(transferAmount);
+      expect(token.balanceOf(owner)).toBe(INITIAL_SUPPLY - transferAmount);
+      expect(token.allowance(owner, alice)).toBe(approvalAmount - transferAmount);
+    });
+
+    it('should handle multiple approvals', () => {
+      token.as(OWNER_PK).approve(alice, 300n);
+      token.as(OWNER_PK).approve(bob, 200n);
+      
+      expect(token.allowance(owner, alice)).toBe(300n);
+      expect(token.allowance(owner, bob)).toBe(200n);
+    });
+
+    it('should update allowance after transferFrom', () => {
+      token.as(OWNER_PK).approve(alice, 1000n);
+      
+      token.as(ALICE_PK).transferFrom(owner, bob, 300n);
+      expect(token.allowance(owner, alice)).toBe(700n);
+      
+      token.as(ALICE_PK).transferFrom(owner, bob, 400n);
+      expect(token.allowance(owner, alice)).toBe(300n);
+    });
+
+    it('should return true on successful approval', () => {
+      const result = token.as(OWNER_PK).approve(alice, 500n);
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('Minting (Owner Only)', () => {
+    it('should allow owner to mint new tokens', () => {
+      const mintAmount = 5000n;
+      const initialSupply = token.totalSupply();
+      
+      token.as(OWNER_PK).mint(alice, mintAmount);
+      
+      expect(token.balanceOf(alice)).toBe(mintAmount);
+      expect(token.totalSupply()).toBe(initialSupply + mintAmount);
+    });
+
+    it('should increase total supply after minting', () => {
+      const initialSupply = token.totalSupply();
+      
+      token.as(OWNER_PK).mint(alice, 1000n);
+      token.as(OWNER_PK).mint(bob, 2000n);
+      
+      expect(token.totalSupply()).toBe(initialSupply + 3000n);
+    });
+
+    it('should allow minting to multiple addresses', () => {
+      token.as(OWNER_PK).mint(alice, 100n);
+      token.as(OWNER_PK).mint(bob, 200n);
+      token.as(OWNER_PK).mint(charlie, 300n);
+      
+      expect(token.balanceOf(alice)).toBe(100n);
+      expect(token.balanceOf(bob)).toBe(200n);
+      expect(token.balanceOf(charlie)).toBe(300n);
+    });
+  });
+
+  describe('Burning (Owner Only)', () => {
+    beforeEach(() => {
+      // Give Alice some tokens to burn
+      token.as(OWNER_PK).transfer(alice, 1000n);
+    });
+
+    it('should allow owner to burn tokens', () => {
+      const burnAmount = 500n;
+      const initialSupply = token.totalSupply();
+      const initialBalance = token.balanceOf(alice);
+      
+      token.as(OWNER_PK).burn(alice, burnAmount);
+      
+      expect(token.balanceOf(alice)).toBe(initialBalance - burnAmount);
+      expect(token.totalSupply()).toBe(initialSupply - burnAmount);
+    });
+
+    it('should decrease total supply after burning', () => {
+      const initialSupply = token.totalSupply();
+      
+      token.as(OWNER_PK).burn(owner, 100n);
+      token.as(OWNER_PK).burn(alice, 200n);
+      
+      expect(token.totalSupply()).toBe(initialSupply - 300n);
+    });
+  });
+
+  describe('Pausable Functionality', () => {
+    it('should allow owner to pause the contract', () => {
+      token.as(OWNER_PK).pause();
+      expect(token.isPaused()).toBe(true);
+    });
+
+    it('should allow owner to unpause the contract', () => {
+      token.as(OWNER_PK).pause();
+      expect(token.isPaused()).toBe(true);
+      
+      token.as(OWNER_PK).unpause();
+      expect(token.isPaused()).toBe(false);
+    });
+
+    it('should block transfers when paused', () => {
+      token.as(OWNER_PK).pause();
+      
+      // This should throw or fail when paused
+      expect(() => {
+        token.as(OWNER_PK).transfer(alice, 100n);
+      }).toThrow();
+    });
+
+    it('should block approvals when paused', () => {
+      token.as(OWNER_PK).pause();
+      
+      expect(() => {
+        token.as(OWNER_PK).approve(alice, 100n);
+      }).toThrow();
+    });
+
+    it('should allow transfers after unpausing', () => {
+      token.as(OWNER_PK).pause();
+      token.as(OWNER_PK).unpause();
+      
+      // Should work normally after unpause
+      token.as(OWNER_PK).transfer(alice, 100n);
+      expect(token.balanceOf(alice)).toBe(100n);
+    });
+  });
+
+  describe('Ownership Management', () => {
+    it('should allow owner to transfer ownership', () => {
+      token.as(OWNER_PK).transferOwnership(alice);
+      
+      expect(token.owner()).toEqual(alice);
+    });
+
+    it('should allow new owner to perform owner operations', () => {
+      // Transfer ownership to Alice
+      token.as(OWNER_PK).transferOwnership(alice);
+      
+      // Alice should now be able to mint
+      token.as(ALICE_PK).mint(bob, 1000n);
+      expect(token.balanceOf(bob)).toBe(1000n);
+    });
+
+    it('should allow owner to renounce ownership', () => {
+      token.as(OWNER_PK).renounceOwnership();
+      
+      // Contract should now be ownerless
+      // This is represented by a zero address or special value
+      const currentOwner = token.owner();
+      expect(currentOwner).not.toEqual(owner);
+    });
+  });
+
+  describe('Edge Cases & Complex Scenarios', () => {
+    it('should handle large transfers correctly', () => {
+      const largeAmount = INITIAL_SUPPLY / 2n;
+      
+      token.as(OWNER_PK).transfer(alice, largeAmount);
+      expect(token.balanceOf(alice)).toBe(largeAmount);
+    });
+
+    it('should maintain balance consistency across multiple operations', () => {
+      // Complex scenario: mint, transfer, approve, transferFrom
+      token.as(OWNER_PK).mint(alice, 1000n);
+      token.as(ALICE_PK).transfer(bob, 300n);
+      token.as(BOB_PK).approve(charlie, 150n);
+      token.as(CHARLIE_PK).transferFrom(bob, owner, 100n);
+      
+      expect(token.balanceOf(alice)).toBe(700n);
+      expect(token.balanceOf(bob)).toBe(200n);
+      expect(token.balanceOf(owner)).toBe(INITIAL_SUPPLY + 100n);
+    });
+
+    it('should preserve total supply across all operations', () => {
+      const initialSupply = token.totalSupply();
+      
+      // Perform various operations
+      token.as(OWNER_PK).transfer(alice, 500n);
+      token.as(ALICE_PK).transfer(bob, 200n);
+      token.as(BOB_PK).transfer(charlie, 50n);
+      
+      // Total supply should remain unchanged
+      expect(token.totalSupply()).toBe(initialSupply);
+    });
+  });
+});
