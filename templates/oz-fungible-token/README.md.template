@@ -4,6 +4,26 @@ A production-ready **OpenZeppelin Fungible Token** implementation for the Midnig
 
 This template provides a complete ERC-20-like token with advanced features including minting, burning, pausable operations, and ownership management - all backed by OpenZeppelin's battle-tested contract modules.
 
+## ⚠️ Important Notice
+
+> **OpenZeppelin Compact Contracts Dependency**  
+> This project relies heavily on [OpenZeppelin Compact Contracts](https://github.com/OpenZeppelin/compact-contracts), which is currently a **Work In Progress (WIP)** project. The dependencies are pulled directly from the `main` branch of the OpenZeppelin repository.
+>
+> **What this means:**
+> - ✅ You always get the latest features and security updates from OpenZeppelin
+> - ⚠️ The OpenZeppelin contracts are still under active development
+> - ⚠️ Breaking changes may occur as OpenZeppelin evolves their Compact implementation
+> - ⚠️ API interfaces and functionality may change without notice
+>
+> **Recommendations:**
+> - 🧪 **Test thoroughly** before deploying to mainnet
+> - 📝 **Review OpenZeppelin's repository** for updates: https://github.com/OpenZeppelin/compact-contracts
+> - 🔄 **Run tests regularly** to catch any breaking changes
+> - 💬 **Join the community** for updates and support
+> - 🚀 **Start with testnet** deployments to validate functionality
+>
+> This template is provided as-is and should be used for development and testing purposes. Always perform your own security audits before production deployment.
+
 ## 🌟 Features
 
 ### Token Functionality
@@ -501,6 +521,21 @@ OpenZeppelin Compact Contracts brings these benefits to Midnight's privacy-prese
 - **FungibleToken**: ERC-20-like token implementation
 - **Ownable**: Ownership management
 - **Pausable**: Emergency pause functionality
+
+### 🚧 Work In Progress Status
+
+**Important:** OpenZeppelin Compact Contracts is currently under active development. This template pulls contracts from the `main` branch, which means:
+
+- **Automatic Updates**: Running `npm install` fetches the latest version from OpenZeppelin's repository
+- **Active Development**: Features and APIs may change as the project evolves
+- **Community Driven**: OpenZeppelin is actively working on this implementation
+- **Production Caution**: Thoroughly test and audit before deploying to mainnet
+
+**Stay Updated:**
+- Monitor the [OpenZeppelin Compact Contracts repository](https://github.com/OpenZeppelin/compact-contracts) for changes
+- Review commit history before major deployments
+- Join the Midnight and OpenZeppelin communities for announcements
+- Re-run your test suite regularly to catch breaking changes
 
 ### Learn More
 
