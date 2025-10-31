@@ -1,0 +1,263 @@
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import chalk from 'chalk';
+import http from 'http';
+import dotenv from 'dotenv';
+
+const execAsync = promisify(exec);
+
+// Load environment variables
+dotenv.config();
+
+/**
+ * Check if Docker is installed and running
+ */
+async function checkDocker(): Promise<boolean> {
+  console.log(chalk.yellow('🐳 Checking Docker...'));
+  
+  try {
+    const { stdout } = await execAsync('docker --version');
+    console.log(chalk.green('✓ Docker installed:'), chalk.gray(stdout.trim()));
+
+    // Check if Docker daemon is running
+    try {
+      await execAsync('docker ps');
+      console.log(chalk.green('✓ Docker daemon is running\n'));
+      return true;
+    } catch (error) {
+      console.log(chalk.red('✗ Docker daemon is not running'));
+      console.log(chalk.yellow('  Please start Docker Desktop or Docker daemon\n'));
+      return false;
+    }
+  } catch (error) {
+    console.log(chalk.red('✗ Docker not found'));
+    console.log(chalk.yellow('  Please install Docker: https://docs.docker.com/get-docker/\n'));
+    return false;
+  }
+}
+
+/**
+ * Check if proof server container is running
+ */
+async function checkProofServerContainer(): Promise<boolean> {
+  console.log(chalk.yellow('📦 Checking proof server container...'));
+  
+  try {
+    const { stdout } = await execAsync('docker ps --filter "name=proof-server" --format "{{.Names}}"');
+    
+    if (stdout.trim()) {
+      console.log(chalk.green('✓ Proof server container is running:'), chalk.gray(stdout.trim()));
+      return true;
+    } else {
+      console.log(chalk.red('✗ Proof server container is not running'));
+      console.log(chalk.yellow('  Run: npm run proof-server\n'));
+      return false;
+    }
+  } catch (error) {
+    console.log(chalk.red('✗ Error checking proof server container\n'));
+    return false;
+  }
+}
+
+/**
+ * Check if proof server is responding
+ */
+async function checkProofServerHealth(url: string): Promise<boolean> {
+  console.log(chalk.yellow('🔍 Checking proof server health...'));
+  
+  return new Promise((resolve) => {
+    const parsedUrl = new URL(url);
+    
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || 6300,
+      path: '/health',
+      method: 'GET',
+      timeout: 5000,
+    };
+
+    const req = http.request(options, (res) => {
+      if (res.statusCode === 200) {
+        console.log(chalk.green('✓ Proof server is healthy'));
+        console.log(chalk.gray(`  URL: ${url}\n`));
+        resolve(true);
+      } else {
+        console.log(chalk.red(`✗ Proof server returned status code: ${res.statusCode}\n`));
+        resolve(false);
+      }
+    });
+
+    req.on('error', (error) => {
+      console.log(chalk.red('✗ Proof server is not responding'));
+      console.log(chalk.yellow(`  URL: ${url}`));
+      console.log(chalk.gray(`  Error: ${error.message}\n`));
+      resolve(false);
+    });
+
+    req.on('timeout', () => {
+      console.log(chalk.red('✗ Proof server request timed out\n'));
+      req.destroy();
+      resolve(false);
+    });
+
+    req.end();
+  });
+}
+
+/**
+ * Check Node.js version
+ */
+async function checkNodeVersion(): Promise<boolean> {
+  console.log(chalk.yellow('📦 Checking Node.js version...'));
+  
+  const version = process.version;
+  const major = parseInt(version.substring(1).split('.')[0]);
+  
+  if (major >= 22) {
+    console.log(chalk.green('✓ Node.js version:'), chalk.gray(version));
+    return true;
+  } else {
+    console.log(chalk.red('✗ Node.js version too old:'), chalk.gray(version));
+    console.log(chalk.yellow('  Required: Node.js 22 or higher'));
+    console.log(chalk.yellow('  Download: https://nodejs.org/\n'));
+    return false;
+  }
+}
+
+/**
+ * Check if required environment variables are set
+ */
+function checkEnvironmentVariables(): boolean {
+  console.log(chalk.yellow('🔧 Checking environment variables...\n'));
+  
+  const requiredVars = [
+    'NETWORK',
+    'NODE_URL',
+    'PROOF_SERVER_URL',
+    'TOKEN_NAME',
+    'TOKEN_SYMBOL',
+    'TOKEN_DECIMALS',
+    'INITIAL_SUPPLY',
+  ];
+
+  let allPresent = true;
+
+  for (const varName of requiredVars) {
+    const value = process.env[varName];
+    if (value) {
+      console.log(chalk.green('✓'), chalk.cyan(varName.padEnd(20)), chalk.gray(value));
+    } else {
+      console.log(chalk.red('✗'), chalk.cyan(varName.padEnd(20)), chalk.yellow('Not set'));
+      allPresent = false;
+    }
+  }
+
+  console.log();
+
+  if (!allPresent) {
+    console.log(chalk.yellow('  Please configure your .env file\n'));
+  }
+
+  return allPresent;
+}
+
+/**
+ * Check if wallet exists
+ */
+function checkWallet(): boolean {
+  console.log(chalk.yellow('👛 Checking wallet...'));
+  
+  const fs = require('fs');
+  const path = require('path');
+  const walletPath = path.join(process.cwd(), 'wallet.json');
+
+  if (fs.existsSync(walletPath)) {
+    try {
+      const wallet = JSON.parse(fs.readFileSync(walletPath, 'utf8'));
+      console.log(chalk.green('✓ Wallet found'));
+      console.log(chalk.cyan(`  Address: ${wallet.address}\n`));
+      return true;
+    } catch (error) {
+      console.log(chalk.red('✗ Wallet file is corrupted\n'));
+      return false;
+    }
+  } else {
+    console.log(chalk.red('✗ Wallet not found'));
+    console.log(chalk.yellow('  Run: npm run generate-wallet\n'));
+    return false;
+  }
+}
+
+/**
+ * Main health check function
+ */
+async function healthCheck(): Promise<void> {
+  console.log(chalk.bold.blue('\n╔════════════════════════════════════════════╗'));
+  console.log(chalk.bold.blue('║         System Health Check               ║'));
+  console.log(chalk.bold.blue('╚════════════════════════════════════════════╝\n'));
+
+  const checks = {
+    node: await checkNodeVersion(),
+    env: checkEnvironmentVariables(),
+    wallet: checkWallet(),
+    docker: await checkDocker(),
+    container: false,
+    proofServer: false,
+  };
+
+  // Only check container and proof server if Docker is running
+  if (checks.docker) {
+    checks.container = await checkProofServerContainer();
+    
+    if (checks.container) {
+      const proofServerUrl = process.env.PROOF_SERVER_URL || 'http://localhost:6300';
+      checks.proofServer = await checkProofServerHealth(proofServerUrl);
+    }
+  }
+
+  // Summary
+  console.log(chalk.bold.blue('═══════════════════════════════════════════'));
+  console.log(chalk.bold.blue('  Health Check Summary'));
+  console.log(chalk.bold.blue('═══════════════════════════════════════════\n'));
+
+  const allPassed = Object.values(checks).every((check) => check === true);
+
+  if (allPassed) {
+    console.log(chalk.green('✓ All checks passed! System is ready.\n'));
+    console.log(chalk.blue('Next steps:'));
+    console.log(chalk.white('  • Run') + chalk.cyan(' npm test ') + chalk.white('to run tests'));
+    console.log(chalk.white('  • Run') + chalk.cyan(' npm run deploy ') + chalk.white('to deploy your contract'));
+    console.log(chalk.white('  • Run') + chalk.cyan(' npm run cli ') + chalk.white('to interact with your contract\n'));
+  } else {
+    console.log(chalk.yellow('⚠️  Some checks failed. Please address the issues above.\n'));
+    
+    if (!checks.node) {
+      console.log(chalk.red('🔴 Node.js version check failed - upgrade required'));
+    }
+    if (!checks.env) {
+      console.log(chalk.red('🔴 Environment variables check failed - configure .env file'));
+    }
+    if (!checks.wallet) {
+      console.log(chalk.red('🔴 Wallet check failed - run npm run generate-wallet'));
+    }
+    if (!checks.docker) {
+      console.log(chalk.yellow('🟡 Docker check failed - required for proof server'));
+    }
+    if (!checks.container && checks.docker) {
+      console.log(chalk.yellow('🟡 Proof server container not running - run npm run proof-server'));
+    }
+    if (!checks.proofServer && checks.container) {
+      console.log(chalk.yellow('🟡 Proof server health check failed - check container logs'));
+    }
+    
+    console.log();
+  }
+
+  process.exit(allPassed ? 0 : 1);
+}
+
+// Run health check
+healthCheck().catch((error) => {
+  console.error(chalk.red('Fatal error:'), error);
+  process.exit(1);
+});

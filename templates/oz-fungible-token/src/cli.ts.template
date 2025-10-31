@@ -1,0 +1,449 @@
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import { createProviders, loadDeploymentInfo } from './providers/midnight-providers.js';
+import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+import contract from '../contract.cjs';
+import { MyFungibleTokenWitnesses, createPrivateState } from '../witnesses/MyFungibleTokenWitnesses.js';
+import { encodeCoinPublicKey } from '@midnight-ntwrk/midnight-js-types';
+import { encodeString } from '../tests/MyFungibleTokenSimulator.js';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+/**
+ * Format token amount with decimals
+ */
+function formatTokenAmount(amount: bigint, decimals: number): string {
+  const divisor = BigInt(10 ** decimals);
+  const whole = amount / divisor;
+  const fraction = amount % divisor;
+  
+  if (fraction === 0n) {
+    return whole.toString();
+  }
+  
+  const fractionStr = fraction.toString().padStart(decimals, '0').replace(/0+$/, '');
+  return `${whole}.${fractionStr}`;
+}
+
+/**
+ * Parse token amount from string with decimals
+ */
+function parseTokenAmount(amountStr: string, decimals: number): bigint {
+  const [whole, fraction = ''] = amountStr.split('.');
+  const fractionPadded = fraction.padEnd(decimals, '0').slice(0, decimals);
+  const amountWithDecimals = whole + fractionPadded;
+  return BigInt(amountWithDecimals);
+}
+
+/**
+ * Display main menu and get user choice
+ */
+async function showMainMenu(): Promise<string> {
+  const { action } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'action',
+      message: 'What would you like to do?',
+      choices: [
+        { name: '💰 Check Balance', value: 'balance' },
+        { name: '📊 View Token Info', value: 'info' },
+        { name: '💸 Transfer Tokens', value: 'transfer' },
+        { name: '✅ Approve Spending', value: 'approve' },
+        { name: '🔄 Transfer From', value: 'transferFrom' },
+        { name: '🪙  Mint Tokens (Owner)', value: 'mint' },
+        { name: '🔥 Burn Tokens (Owner)', value: 'burn' },
+        { name: '⏸️  Pause Contract (Owner)', value: 'pause' },
+        { name: '▶️  Unpause Contract (Owner)', value: 'unpause' },
+        { name: '👤 Transfer Ownership (Owner)', value: 'transferOwnership' },
+        new inquirer.Separator(),
+        { name: '🚪 Exit', value: 'exit' },
+      ],
+    },
+  ]);
+
+  return action;
+}
+
+/**
+ * Check balance of an address
+ */
+async function handleBalance(contractInstance: any, tokenSymbol: string, decimals: number): Promise<void> {
+  const { address } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'address',
+      message: 'Enter address to check:',
+      validate: (input) => (input.length > 0 ? true : 'Address is required'),
+    },
+  ]);
+
+  try {
+    const addressKey = encodeCoinPublicKey(address);
+    const balance = await contractInstance.balanceOf(addressKey);
+    
+    console.log(chalk.green('\n✓ Balance:'));
+    console.log(chalk.cyan(`  ${formatTokenAmount(balance, decimals)} ${tokenSymbol}`));
+    console.log(chalk.gray(`  Raw: ${balance.toString()}\n`));
+  } catch (error) {
+    console.error(chalk.red('❌ Error fetching balance:'), error);
+  }
+}
+
+/**
+ * View token information
+ */
+async function handleTokenInfo(contractInstance: any, decimals: number): Promise<void> {
+  try {
+    const [name, symbol, totalSupply, owner, isPaused] = await Promise.all([
+      contractInstance.name(),
+      contractInstance.symbol(),
+      contractInstance.totalSupply(),
+      contractInstance.owner(),
+      contractInstance.isPaused(),
+    ]);
+
+    console.log(chalk.green('\n📊 Token Information:'));
+    console.log(chalk.cyan(`  Name: ${name}`));
+    console.log(chalk.cyan(`  Symbol: ${symbol}`));
+    console.log(chalk.cyan(`  Decimals: ${decimals}`));
+    console.log(chalk.cyan(`  Total Supply: ${formatTokenAmount(totalSupply, decimals)} ${symbol}`));
+    console.log(chalk.cyan(`  Owner: ${owner}`));
+    console.log(chalk.cyan(`  Paused: ${isPaused ? 'Yes' : 'No'}\n`));
+  } catch (error) {
+    console.error(chalk.red('❌ Error fetching token info:'), error);
+  }
+}
+
+/**
+ * Transfer tokens
+ */
+async function handleTransfer(
+  contractInstance: any,
+  walletAddress: string,
+  tokenSymbol: string,
+  decimals: number
+): Promise<void> {
+  const answers = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'to',
+      message: 'Transfer to address:',
+      validate: (input) => (input.length > 0 ? true : 'Address is required'),
+    },
+    {
+      type: 'input',
+      name: 'amount',
+      message: `Amount (${tokenSymbol}):`,
+      validate: (input) => {
+        const num = parseFloat(input);
+        return !isNaN(num) && num > 0 ? true : 'Enter a valid positive number';
+      },
+    },
+  ]);
+
+  try {
+    const toKey = encodeCoinPublicKey(answers.to);
+    const amount = parseTokenAmount(answers.amount, decimals);
+
+    console.log(chalk.yellow('\n⏳ Processing transfer...'));
+    
+    await contractInstance.transfer(toKey, amount);
+
+    console.log(chalk.green('✓ Transfer successful!'));
+    console.log(chalk.cyan(`  Transferred: ${formatTokenAmount(amount, decimals)} ${tokenSymbol}`));
+    console.log(chalk.cyan(`  To: ${answers.to}\n`));
+  } catch (error) {
+    console.error(chalk.red('❌ Transfer failed:'), error);
+  }
+}
+
+/**
+ * Approve spending
+ */
+async function handleApprove(
+  contractInstance: any,
+  tokenSymbol: string,
+  decimals: number
+): Promise<void> {
+  const answers = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'spender',
+      message: 'Approve spending for address:',
+      validate: (input) => (input.length > 0 ? true : 'Address is required'),
+    },
+    {
+      type: 'input',
+      name: 'amount',
+      message: `Approval amount (${tokenSymbol}):`,
+      validate: (input) => {
+        const num = parseFloat(input);
+        return !isNaN(num) && num > 0 ? true : 'Enter a valid positive number';
+      },
+    },
+  ]);
+
+  try {
+    const spenderKey = encodeCoinPublicKey(answers.spender);
+    const amount = parseTokenAmount(answers.amount, decimals);
+
+    console.log(chalk.yellow('\n⏳ Processing approval...'));
+    
+    await contractInstance.approve(spenderKey, amount);
+
+    console.log(chalk.green('✓ Approval successful!'));
+    console.log(chalk.cyan(`  Approved: ${formatTokenAmount(amount, decimals)} ${tokenSymbol}`));
+    console.log(chalk.cyan(`  For: ${answers.spender}\n`));
+  } catch (error) {
+    console.error(chalk.red('❌ Approval failed:'), error);
+  }
+}
+
+/**
+ * Mint tokens (owner only)
+ */
+async function handleMint(
+  contractInstance: any,
+  tokenSymbol: string,
+  decimals: number
+): Promise<void> {
+  const answers = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'to',
+      message: 'Mint to address:',
+      validate: (input) => (input.length > 0 ? true : 'Address is required'),
+    },
+    {
+      type: 'input',
+      name: 'amount',
+      message: `Amount to mint (${tokenSymbol}):`,
+      validate: (input) => {
+        const num = parseFloat(input);
+        return !isNaN(num) && num > 0 ? true : 'Enter a valid positive number';
+      },
+    },
+  ]);
+
+  try {
+    const toKey = encodeCoinPublicKey(answers.to);
+    const amount = parseTokenAmount(answers.amount, decimals);
+
+    console.log(chalk.yellow('\n⏳ Minting tokens...'));
+    
+    await contractInstance.mint(toKey, amount);
+
+    console.log(chalk.green('✓ Mint successful!'));
+    console.log(chalk.cyan(`  Minted: ${formatTokenAmount(amount, decimals)} ${tokenSymbol}`));
+    console.log(chalk.cyan(`  To: ${answers.to}\n`));
+  } catch (error) {
+    console.error(chalk.red('❌ Mint failed:'), error);
+  }
+}
+
+/**
+ * Burn tokens (owner only)
+ */
+async function handleBurn(
+  contractInstance: any,
+  tokenSymbol: string,
+  decimals: number
+): Promise<void> {
+  const { amount } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'amount',
+      message: `Amount to burn (${tokenSymbol}):`,
+      validate: (input) => {
+        const num = parseFloat(input);
+        return !isNaN(num) && num > 0 ? true : 'Enter a valid positive number';
+      },
+    },
+  ]);
+
+  try {
+    const burnAmount = parseTokenAmount(amount, decimals);
+
+    console.log(chalk.yellow('\n⏳ Burning tokens...'));
+    
+    await contractInstance.burn(burnAmount);
+
+    console.log(chalk.green('✓ Burn successful!'));
+    console.log(chalk.cyan(`  Burned: ${formatTokenAmount(burnAmount, decimals)} ${tokenSymbol}\n`));
+  } catch (error) {
+    console.error(chalk.red('❌ Burn failed:'), error);
+  }
+}
+
+/**
+ * Pause contract (owner only)
+ */
+async function handlePause(contractInstance: any): Promise<void> {
+  try {
+    console.log(chalk.yellow('\n⏳ Pausing contract...'));
+    
+    await contractInstance.pause();
+
+    console.log(chalk.green('✓ Contract paused successfully!\n'));
+  } catch (error) {
+    console.error(chalk.red('❌ Pause failed:'), error);
+  }
+}
+
+/**
+ * Unpause contract (owner only)
+ */
+async function handleUnpause(contractInstance: any): Promise<void> {
+  try {
+    console.log(chalk.yellow('\n⏳ Unpausing contract...'));
+    
+    await contractInstance.unpause();
+
+    console.log(chalk.green('✓ Contract unpaused successfully!\n'));
+  } catch (error) {
+    console.error(chalk.red('❌ Unpause failed:'), error);
+  }
+}
+
+/**
+ * Transfer ownership (owner only)
+ */
+async function handleTransferOwnership(contractInstance: any): Promise<void> {
+  const { newOwner } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'newOwner',
+      message: 'New owner address:',
+      validate: (input) => (input.length > 0 ? true : 'Address is required'),
+    },
+  ]);
+
+  const { confirm } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'confirm',
+      message: chalk.yellow('⚠️  Are you sure you want to transfer ownership? This cannot be undone.'),
+      default: false,
+    },
+  ]);
+
+  if (!confirm) {
+    console.log(chalk.gray('Ownership transfer cancelled.\n'));
+    return;
+  }
+
+  try {
+    const newOwnerKey = encodeCoinPublicKey(newOwner);
+
+    console.log(chalk.yellow('\n⏳ Transferring ownership...'));
+    
+    await contractInstance.transferOwnership(newOwnerKey);
+
+    console.log(chalk.green('✓ Ownership transferred successfully!'));
+    console.log(chalk.cyan(`  New Owner: ${newOwner}\n`));
+  } catch (error) {
+    console.error(chalk.red('❌ Ownership transfer failed:'), error);
+  }
+}
+
+/**
+ * Main CLI function
+ */
+async function main(): Promise<void> {
+  console.log(chalk.bold.blue('\n╔════════════════════════════════════════════╗'));
+  console.log(chalk.bold.blue('║     MyFungibleToken CLI Interface         ║'));
+  console.log(chalk.bold.blue('╚════════════════════════════════════════════╝\n'));
+
+  // Check for deployment
+  const deploymentInfo = loadDeploymentInfo();
+  
+  if (!deploymentInfo) {
+    console.error(chalk.red('❌ No deployment found!'));
+    console.log(chalk.yellow('\n💡 Run') + chalk.cyan(' npm run deploy ') + chalk.yellow('first to deploy the contract\n'));
+    process.exit(1);
+  }
+
+  console.log(chalk.green('✓ Contract deployed:'));
+  console.log(chalk.cyan(`  Address: ${deploymentInfo.contractAddress}`));
+  console.log(chalk.cyan(`  Token: ${deploymentInfo.tokenName} (${deploymentInfo.tokenSymbol})\n`));
+
+  try {
+    // Initialize providers
+    console.log(chalk.yellow('🔌 Connecting to Midnight network...'));
+    const { providers, walletAddress } = await createProviders();
+    console.log(chalk.green('✓ Connected!'));
+    console.log(chalk.cyan(`  Your Address: ${walletAddress}\n`));
+
+    // Find deployed contract
+    console.log(chalk.yellow('📄 Loading contract...'));
+    const contractInstance = await findDeployedContract(
+      providers.midnightProvider,
+      {
+        contract,
+        deployTxHash: deploymentInfo.contractAddress,
+      },
+      {
+        privateStateKey: providers.walletProvider.privateStateKey,
+        witnesses: MyFungibleTokenWitnesses(),
+      },
+      providers.stateProvider
+    );
+    console.log(chalk.green('✓ Contract loaded!\n'));
+
+    // Main CLI loop
+    let running = true;
+    
+    while (running) {
+      const action = await showMainMenu();
+
+      switch (action) {
+        case 'balance':
+          await handleBalance(contractInstance, deploymentInfo.tokenSymbol, deploymentInfo.decimals);
+          break;
+        case 'info':
+          await handleTokenInfo(contractInstance, deploymentInfo.decimals);
+          break;
+        case 'transfer':
+          await handleTransfer(contractInstance, walletAddress, deploymentInfo.tokenSymbol, deploymentInfo.decimals);
+          break;
+        case 'approve':
+          await handleApprove(contractInstance, deploymentInfo.tokenSymbol, deploymentInfo.decimals);
+          break;
+        case 'mint':
+          await handleMint(contractInstance, deploymentInfo.tokenSymbol, deploymentInfo.decimals);
+          break;
+        case 'burn':
+          await handleBurn(contractInstance, deploymentInfo.tokenSymbol, deploymentInfo.decimals);
+          break;
+        case 'pause':
+          await handlePause(contractInstance);
+          break;
+        case 'unpause':
+          await handleUnpause(contractInstance);
+          break;
+        case 'transferOwnership':
+          await handleTransferOwnership(contractInstance);
+          break;
+        case 'exit':
+          running = false;
+          console.log(chalk.gray('\nGoodbye! 👋\n'));
+          break;
+      }
+    }
+
+    // Cleanup
+    await providers.walletProvider.close();
+
+  } catch (error) {
+    console.error(chalk.red('\n❌ Error:'), error);
+    process.exit(1);
+  }
+}
+
+// Run the CLI
+main().catch((error) => {
+  console.error(chalk.red('Fatal error:'), error);
+  process.exit(1);
+});

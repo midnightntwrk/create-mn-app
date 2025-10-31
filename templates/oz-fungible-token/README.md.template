@@ -1,0 +1,569 @@
+# MyFungibleToken - OpenZeppelin Compact Contracts Template
+
+A production-ready **OpenZeppelin Fungible Token** implementation for the Midnight blockchain, built with [OpenZeppelin Compact Contracts](https://github.com/OpenZeppelin/compact-contracts).
+
+This template provides a complete ERC-20-like token with advanced features including minting, burning, pausable operations, and ownership management - all backed by OpenZeppelin's battle-tested contract modules.
+
+## 🌟 Features
+
+### Token Functionality
+- **ERC-20 Compatible**: Standard token interface with `transfer`, `approve`, and `transferFrom`
+- **Minting**: Owner can mint new tokens to any address
+- **Burning**: Owner can burn tokens to reduce supply
+- **Pausable**: Owner can pause/unpause all token transfers
+- **Ownable**: Secure ownership management with transfer capabilities
+
+### Development Features
+- ✅ **40+ Comprehensive Tests**: Full test coverage using OpenZeppelin's Simulator
+- 🚀 **Fast Local Testing**: Test instantly without network deployment
+- 📦 **Production-Ready Deployment**: Deploy to Midnight testnet/mainnet
+- 🎨 **Interactive CLI**: User-friendly command-line interface
+- 🔧 **TypeScript Support**: Full type safety and IDE support
+- 📊 **Health Check**: Verify your environment setup
+
+## 📋 Prerequisites
+
+- **Node.js**: Version 22 or higher
+- **Docker**: Required for proof server (local development)
+- **Midnight Wallet**: Testnet tokens for deployment
+
+## 🚀 Quick Start
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure Environment
+
+Copy the environment template and configure your settings:
+
+```bash
+cp .env.template .env
+```
+
+Edit `.env` with your configuration:
+
+```bash
+# Network Configuration
+NETWORK=testnet
+NODE_URL=https://rpc.testnet.midnight.network
+PROOF_SERVER_URL=http://localhost:6300
+
+# Wallet Configuration (will be filled after wallet generation)
+PRIVATE_KEY=
+WALLET_ADDRESS=
+
+# Token Configuration
+TOKEN_NAME=MyFungibleToken
+TOKEN_SYMBOL=MFT
+TOKEN_DECIMALS=18
+INITIAL_SUPPLY=1000000
+```
+
+### 3. Generate Wallet
+
+Create a new Midnight wallet:
+
+```bash
+npm run generate-wallet
+```
+
+This will:
+- Generate a new wallet with private key and address
+- Save it to `wallet.json`
+- Display your wallet address
+
+**⚠️ SECURITY WARNING**: Never commit `wallet.json` or share your private key!
+
+### 4. Start Proof Server (For Deployment)
+
+If you plan to deploy to the network, start the local proof server:
+
+```bash
+npm run proof-server
+```
+
+This starts a Docker container with the Midnight proof server on port 6300.
+
+### 5. Run Tests (Recommended First Step)
+
+Test your contract locally without deploying:
+
+```bash
+npm test
+```
+
+This runs 40+ tests covering:
+- Token deployment and initialization
+- Transfer operations
+- Approval and transferFrom
+- Minting and burning
+- Pausable functionality
+- Ownership management
+- Edge cases and complex scenarios
+
+### 6. Deploy Contract
+
+Deploy your token to the Midnight testnet:
+
+```bash
+npm run deploy
+```
+
+This will:
+- Connect to the Midnight network
+- Deploy your token contract
+- Save deployment info to `deployment.json`
+- Display your contract address
+
+### 7. Interact with Contract
+
+Use the interactive CLI to interact with your deployed token:
+
+```bash
+npm run cli
+```
+
+Available operations:
+- 💰 Check Balance
+- 📊 View Token Info
+- 💸 Transfer Tokens
+- ✅ Approve Spending
+- 🔄 Transfer From
+- 🪙 Mint Tokens (Owner)
+- 🔥 Burn Tokens (Owner)
+- ⏸️ Pause Contract (Owner)
+- ▶️ Unpause Contract (Owner)
+- 👤 Transfer Ownership (Owner)
+
+## 📚 Available Scripts
+
+### Development
+
+```bash
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with UI
+npm run test:ui
+
+# Compile contract
+npm run compile
+
+# Build TypeScript
+npm run build
+
+# Development mode (watch + rebuild)
+npm run dev
+```
+
+### Deployment & Interaction
+
+```bash
+# Deploy contract to network
+npm run deploy
+
+# Interactive CLI
+npm run cli
+```
+
+### Utilities
+
+```bash
+# Generate new wallet
+npm run generate-wallet
+
+# Check system health
+npm run health-check
+
+# Start proof server
+npm run proof-server
+```
+
+## 🏗️ Project Structure
+
+```
+.
+├── contracts/
+│   └── MyFungibleToken.compact    # Main token contract (imports OZ modules)
+├── src/
+│   ├── cli.ts                     # Interactive CLI
+│   ├── deploy.ts                  # Deployment script
+│   ├── providers/
+│   │   └── midnight-providers.ts  # Network providers
+│   └── utils/
+│       ├── environment.ts         # Environment helpers
+│       ├── health-check.ts        # System health check
+│       └── wallet-generator.ts    # Wallet generation
+├── tests/
+│   ├── MyFungibleToken.test.ts    # 40+ test cases
+│   └── MyFungibleTokenSimulator.ts # Simulator wrapper
+├── witnesses/
+│   └── MyFungibleTokenWitnesses.ts # Witness functions
+├── .env.template                   # Environment template
+├── package.json
+├── tsconfig.json
+└── vitest.config.ts
+```
+
+## 🧪 Testing
+
+This template uses **Vitest** and **OpenZeppelin's Simulator** for fast, reliable testing.
+
+### Test Structure
+
+The test suite (`tests/MyFungibleToken.test.ts`) includes 40+ tests organized into:
+
+1. **Deployment & Initialization** (5 tests)
+   - Token metadata (name, symbol, decimals)
+   - Initial supply verification
+   - Owner setup
+   - Initial paused state
+
+2. **Transfer Operations** (5 tests)
+   - Basic transfers
+   - Multiple transfers
+   - Balance tracking
+   - Return values
+
+3. **Approval & TransferFrom** (6 tests)
+   - Approve spending
+   - TransferFrom operations
+   - Allowance tracking
+   - Multiple approvals
+
+4. **Minting** (3 tests)
+   - Owner minting
+   - Supply increase
+   - Multiple recipients
+
+5. **Burning** (2 tests)
+   - Token burning
+   - Supply decrease
+
+6. **Pausable Functionality** (5 tests)
+   - Pause/unpause
+   - Blocked operations when paused
+   - Resume after unpause
+
+7. **Ownership Management** (3 tests)
+   - Transfer ownership
+   - New owner operations
+   - Renounce ownership
+
+8. **Edge Cases & Complex Scenarios** (3+ tests)
+   - Large transfers
+   - Complex interactions
+   - Supply consistency
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Watch mode (reruns on changes)
+npm run test:watch
+
+# UI mode (interactive browser-based)
+npm run test:ui
+```
+
+### Why Test Locally First?
+
+✅ **Instant feedback** - No network delays  
+✅ **No costs** - No testnet tokens required  
+✅ **Reliable** - No network issues  
+✅ **Fast iteration** - Test while developing  
+✅ **Same behavior** - Simulator matches network exactly
+
+## 🚢 Deployment
+
+### Prerequisites
+
+1. **Funded Wallet**: Your wallet needs testnet tokens
+2. **Proof Server**: Must be running (`npm run proof-server`)
+3. **Environment**: `.env` configured correctly
+
+### Deployment Process
+
+```bash
+npm run deploy
+```
+
+The deployment script will:
+1. Validate environment configuration
+2. Connect to Midnight network
+3. Deploy your token contract
+4. Save deployment info to `deployment.json`
+
+### Deployment Info
+
+After deployment, `deployment.json` contains:
+
+```json
+{
+  "contractAddress": "0x...",
+  "deployedAt": "2024-01-01T00:00:00.000Z",
+  "network": "testnet",
+  "tokenName": "MyFungibleToken",
+  "tokenSymbol": "MFT",
+  "decimals": 18,
+  "initialSupply": "1000000",
+  "owner": "0x..."
+}
+```
+
+## 🎨 CLI Usage
+
+The interactive CLI provides a user-friendly interface to interact with your deployed token.
+
+### Starting the CLI
+
+```bash
+npm run cli
+```
+
+### Available Operations
+
+#### For All Users
+
+- **Check Balance**: View token balance of any address
+- **View Token Info**: See token metadata and status
+- **Transfer Tokens**: Send tokens to another address
+- **Approve Spending**: Allow another address to spend your tokens
+- **Transfer From**: Transfer tokens on behalf of another address (if approved)
+
+#### For Contract Owner Only
+
+- **Mint Tokens**: Create new tokens and send to any address
+- **Burn Tokens**: Destroy tokens to reduce supply
+- **Pause Contract**: Disable all token transfers
+- **Unpause Contract**: Re-enable token transfers
+- **Transfer Ownership**: Transfer contract ownership to a new address
+
+### Example Workflow
+
+1. **Check your balance**:
+   ```
+   Select: Check Balance
+   Enter your wallet address
+   ```
+
+2. **Transfer tokens**:
+   ```
+   Select: Transfer Tokens
+   Enter recipient address
+   Enter amount (e.g., 100.5)
+   ```
+
+3. **Mint new tokens** (owner only):
+   ```
+   Select: Mint Tokens (Owner)
+   Enter recipient address
+   Enter amount to mint
+   ```
+
+## 🔧 Contract Customization
+
+### Modifying Token Parameters
+
+Edit `.env` before deployment:
+
+```bash
+TOKEN_NAME=MyCustomToken
+TOKEN_SYMBOL=MCT
+TOKEN_DECIMALS=18
+INITIAL_SUPPLY=5000000
+```
+
+### Adding Custom Functionality
+
+The contract (`contracts/MyFungibleToken.compact`) imports OpenZeppelin modules:
+
+```compact
+import { FungibleToken_ } from '@openzeppelin-compact/contracts/token/fungible-token';
+import { Ownable_ } from '@openzeppelin-compact/contracts/access/ownable';
+import { Pausable_ } from '@openzeppelin-compact/contracts/utils/pausable';
+```
+
+You can:
+1. Add more circuits to the contract
+2. Import additional OZ modules (when available)
+3. Customize circuit logic
+4. Add custom state management
+
+### Testing Custom Changes
+
+After modifying the contract:
+
+1. Update tests in `tests/MyFungibleToken.test.ts`
+2. Run tests: `npm test`
+3. Verify all tests pass
+4. Deploy: `npm run deploy`
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+#### 1. "Wallet file not found"
+
+```bash
+npm run generate-wallet
+```
+
+#### 2. "Proof server not responding"
+
+```bash
+# Check if Docker is running
+docker ps
+
+# Start proof server
+npm run proof-server
+
+# Verify it's running
+npm run health-check
+```
+
+#### 3. "No deployment found"
+
+You need to deploy first:
+```bash
+npm run deploy
+```
+
+#### 4. "Node.js version too old"
+
+Upgrade to Node.js 22+:
+```bash
+# Using nvm
+nvm install 22
+nvm use 22
+```
+
+#### 5. Tests failing
+
+```bash
+# Clean and reinstall
+rm -rf node_modules
+npm install
+
+# Recompile
+npm run compile
+
+# Run tests
+npm test
+```
+
+### Health Check
+
+Run the health check to diagnose issues:
+
+```bash
+npm run health-check
+```
+
+This checks:
+- ✅ Node.js version
+- ✅ Environment variables
+- ✅ Wallet existence
+- ✅ Docker installation
+- ✅ Proof server status
+- ✅ Proof server health
+
+## 📖 OpenZeppelin Compact Contracts
+
+This template uses **OpenZeppelin Compact Contracts** - the gold standard for secure smart contracts, now available for Midnight.
+
+### What are OpenZeppelin Contracts?
+
+OpenZeppelin is the most trusted name in smart contract security, with contracts securing over **$1 trillion** in value. Their contracts are:
+- 🛡️ **Battle-tested**: Used by thousands of projects
+- 🔒 **Audited**: Professionally audited by security experts
+- 📚 **Well-documented**: Comprehensive documentation
+- 🎯 **Best practices**: Industry-standard implementations
+
+### Compact Contracts for Midnight
+
+OpenZeppelin Compact Contracts brings these benefits to Midnight's privacy-preserving blockchain:
+- Same security guarantees
+- Adapted for Midnight's Compact language
+- Compatible with Midnight's zero-knowledge architecture
+- Modular and composable
+
+### Available Modules (in this template)
+
+- **FungibleToken**: ERC-20-like token implementation
+- **Ownable**: Ownership management
+- **Pausable**: Emergency pause functionality
+
+### Learn More
+
+- [OpenZeppelin Contracts](https://www.openzeppelin.com/contracts)
+- [OpenZeppelin Compact Contracts (GitHub)](https://github.com/OpenZeppelin/compact-contracts)
+- [Midnight Documentation](https://docs.midnight.network)
+
+## 🔐 Security
+
+### Best Practices
+
+1. **Never commit secrets**:
+   - `wallet.json` is in `.gitignore`
+   - Never share your private key
+   - Keep backups secure
+
+2. **Test thoroughly**:
+   - Run all tests before deployment
+   - Test on testnet before mainnet
+   - Verify all functionality
+
+3. **Start small**:
+   - Deploy with small amounts first
+   - Test all operations
+   - Increase usage gradually
+
+4. **Monitor deployment**:
+   - Keep `deployment.json` backed up
+   - Track contract address
+   - Monitor transactions
+
+### Audit Recommendations
+
+For production use:
+- ✅ Run comprehensive tests
+- ✅ Have contract reviewed by security experts
+- ✅ Test on testnet extensively
+- ✅ Start with limited token supply
+- ✅ Implement monitoring and alerts
+
+## 📝 License
+
+This template is MIT licensed.
+
+OpenZeppelin Compact Contracts are MIT licensed.
+
+## 🤝 Contributing
+
+Found a bug or have a suggestion? Please open an issue!
+
+## 🆘 Support
+
+- [Midnight Documentation](https://docs.midnight.network)
+- [Midnight Discord](https://discord.gg/midnight)
+- [OpenZeppelin Forum](https://forum.openzeppelin.com)
+
+## 🎉 Next Steps
+
+Now that you have your token deployed:
+
+1. **Test extensively**: Use the CLI to test all features
+2. **Build a dApp**: Create a frontend for your token
+3. **Integrate**: Connect with other Midnight contracts
+4. **Explore**: Try the NFT and Multi-token templates (coming soon)
+
+Happy building on Midnight! 🌙✨

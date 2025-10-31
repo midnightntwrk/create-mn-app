@@ -1,0 +1,81 @@
+import { generateMidnightWallet } from '@midnight-ntwrk/wallet';
+import chalk from 'chalk';
+import fs from 'fs';
+import path from 'path';
+
+const WALLET_FILE = 'wallet.json';
+
+/**
+ * Generate a new Midnight wallet
+ */
+async function generateWallet(): Promise<void> {
+  console.log(chalk.bold.blue('\n╔════════════════════════════════════════════╗'));
+  console.log(chalk.bold.blue('║      Midnight Wallet Generator            ║'));
+  console.log(chalk.bold.blue('╚════════════════════════════════════════════╝\n'));
+
+  const walletPath = path.join(process.cwd(), WALLET_FILE);
+
+  // Check if wallet already exists
+  if (fs.existsSync(walletPath)) {
+    console.log(chalk.yellow('⚠️  Warning: A wallet already exists!'));
+    console.log(chalk.gray(`   Location: ${WALLET_FILE}\n`));
+    
+    // Read existing wallet
+    try {
+      const existingWallet = JSON.parse(fs.readFileSync(walletPath, 'utf8'));
+      console.log(chalk.cyan('📋 Existing Wallet Information:'));
+      console.log(chalk.cyan(`   Address: ${existingWallet.address}`));
+      console.log(chalk.gray(`   Private Key: ${existingWallet.privateKey.substring(0, 20)}...\n`));
+      
+      console.log(chalk.yellow('💡 To create a new wallet, delete the existing wallet.json file first.\n'));
+      console.log(chalk.red('⚠️  WARNING: Deleting the wallet will result in loss of access to funds!'));
+      console.log(chalk.gray('   Make sure to backup your private key before deleting.\n'));
+      return;
+    } catch (error) {
+      console.log(chalk.red('❌ Error reading existing wallet. It may be corrupted.\n'));
+    }
+  }
+
+  try {
+    console.log(chalk.yellow('🔐 Generating new wallet...\n'));
+
+    // Generate wallet
+    const wallet = generateMidnightWallet();
+
+    // Save to file
+    const walletData = {
+      privateKey: wallet.privateKey,
+      address: wallet.address,
+      createdAt: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(walletPath, JSON.stringify(walletData, null, 2));
+
+    console.log(chalk.green('✓ Wallet generated successfully!\n'));
+    console.log(chalk.green('📋 Wallet Information:'));
+    console.log(chalk.cyan(`   Address: ${wallet.address}`));
+    console.log(chalk.cyan(`   Private Key: ${wallet.privateKey}`));
+    console.log(chalk.gray(`   Saved to: ${WALLET_FILE}\n`));
+
+    console.log(chalk.red('⚠️  SECURITY WARNING:'));
+    console.log(chalk.yellow('   • NEVER share your private key with anyone!'));
+    console.log(chalk.yellow('   • NEVER commit wallet.json to version control!'));
+    console.log(chalk.yellow('   • Make a secure backup of your private key'));
+    console.log(chalk.yellow('   • Store it in a safe place (password manager, hardware wallet, etc.)\n'));
+
+    console.log(chalk.blue('💰 Next Steps:'));
+    console.log(chalk.white('   1. Fund your wallet with testnet tokens'));
+    console.log(chalk.white('   2. Configure your') + chalk.cyan(' .env ') + chalk.white('file'));
+    console.log(chalk.white('   3. Run') + chalk.cyan(' npm run deploy ') + chalk.white('to deploy your contract\n'));
+
+  } catch (error) {
+    console.error(chalk.red('\n❌ Error generating wallet:'), error);
+    process.exit(1);
+  }
+}
+
+// Run wallet generation
+generateWallet().catch((error) => {
+  console.error(chalk.red('Fatal error:'), error);
+  process.exit(1);
+});

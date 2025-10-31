@@ -1,0 +1,179 @@
+import dotenv from 'dotenv';
+import chalk from 'chalk';
+
+// Load environment variables
+dotenv.config();
+
+/**
+ * Get required environment variable or throw error
+ */
+export function getRequiredEnv(key: string): string {
+  const value = process.env[key];
+  
+  if (!value) {
+    console.error(chalk.red(`\n❌ Missing required environment variable: ${key}`));
+    console.log(chalk.yellow(`   Please set ${key} in your .env file\n`));
+    process.exit(1);
+  }
+  
+  return value;
+}
+
+/**
+ * Get optional environment variable with default value
+ */
+export function getEnv(key: string, defaultValue: string): string {
+  return process.env[key] || defaultValue;
+}
+
+/**
+ * Get environment variable as number
+ */
+export function getEnvNumber(key: string, defaultValue: number): number {
+  const value = process.env[key];
+  
+  if (!value) {
+    return defaultValue;
+  }
+  
+  const parsed = parseInt(value, 10);
+  
+  if (isNaN(parsed)) {
+    console.warn(chalk.yellow(`⚠️  Invalid number for ${key}: ${value}, using default: ${defaultValue}`));
+    return defaultValue;
+  }
+  
+  return parsed;
+}
+
+/**
+ * Get environment variable as bigint
+ */
+export function getEnvBigInt(key: string, defaultValue: bigint): bigint {
+  const value = process.env[key];
+  
+  if (!value) {
+    return defaultValue;
+  }
+  
+  try {
+    return BigInt(value);
+  } catch (error) {
+    console.warn(chalk.yellow(`⚠️  Invalid bigint for ${key}: ${value}, using default: ${defaultValue}`));
+    return defaultValue;
+  }
+}
+
+/**
+ * Get environment variable as boolean
+ */
+export function getEnvBoolean(key: string, defaultValue: boolean): boolean {
+  const value = process.env[key];
+  
+  if (!value) {
+    return defaultValue;
+  }
+  
+  return value.toLowerCase() === 'true' || value === '1';
+}
+
+/**
+ * Validate all required environment variables
+ */
+export function validateEnvironment(): void {
+  const requiredVars = [
+    'NETWORK',
+    'NODE_URL',
+    'PROOF_SERVER_URL',
+    'TOKEN_NAME',
+    'TOKEN_SYMBOL',
+    'TOKEN_DECIMALS',
+    'INITIAL_SUPPLY',
+  ];
+
+  const missing: string[] = [];
+
+  for (const varName of requiredVars) {
+    if (!process.env[varName]) {
+      missing.push(varName);
+    }
+  }
+
+  if (missing.length > 0) {
+    console.error(chalk.red('\n❌ Missing required environment variables:'));
+    missing.forEach((varName) => {
+      console.log(chalk.yellow(`   • ${varName}`));
+    });
+    console.log(chalk.gray('\nPlease configure your .env file based on .env.template\n'));
+    process.exit(1);
+  }
+}
+
+/**
+ * Get network configuration
+ */
+export interface NetworkConfig {
+  network: string;
+  nodeUrl: string;
+  indexerUrl: string;
+  indexerWsUrl: string;
+  proofServerUrl: string;
+}
+
+export function getNetworkConfig(): NetworkConfig {
+  const network = getEnv('NETWORK', 'testnet');
+  const nodeUrl = getEnv('NODE_URL', 'https://rpc.testnet.midnight.network');
+  const proofServerUrl = getEnv('PROOF_SERVER_URL', 'http://localhost:6300');
+
+  // Derive indexer URLs from node URL
+  const indexerUrl = nodeUrl.replace('rpc.', 'indexer.');
+  const indexerWsUrl = indexerUrl.replace('https://', 'wss://');
+
+  return {
+    network,
+    nodeUrl,
+    indexerUrl,
+    indexerWsUrl,
+    proofServerUrl,
+  };
+}
+
+/**
+ * Get token configuration
+ */
+export interface TokenConfig {
+  name: string;
+  symbol: string;
+  decimals: number;
+  initialSupply: bigint;
+}
+
+export function getTokenConfig(): TokenConfig {
+  return {
+    name: getRequiredEnv('TOKEN_NAME'),
+    symbol: getRequiredEnv('TOKEN_SYMBOL'),
+    decimals: getEnvNumber('TOKEN_DECIMALS', 18),
+    initialSupply: getEnvBigInt('INITIAL_SUPPLY', 1000000n),
+  };
+}
+
+/**
+ * Display environment configuration (for debugging)
+ */
+export function displayEnvironment(): void {
+  const networkConfig = getNetworkConfig();
+  const tokenConfig = getTokenConfig();
+
+  console.log(chalk.blue('\n📋 Environment Configuration:'));
+  console.log(chalk.cyan('  Network:'));
+  console.log(chalk.gray(`    Network: ${networkConfig.network}`));
+  console.log(chalk.gray(`    Node URL: ${networkConfig.nodeUrl}`));
+  console.log(chalk.gray(`    Indexer URL: ${networkConfig.indexerUrl}`));
+  console.log(chalk.gray(`    Proof Server: ${networkConfig.proofServerUrl}`));
+  
+  console.log(chalk.cyan('\n  Token:'));
+  console.log(chalk.gray(`    Name: ${tokenConfig.name}`));
+  console.log(chalk.gray(`    Symbol: ${tokenConfig.symbol}`));
+  console.log(chalk.gray(`    Decimals: ${tokenConfig.decimals}`));
+  console.log(chalk.gray(`    Initial Supply: ${tokenConfig.initialSupply}\n`));
+}

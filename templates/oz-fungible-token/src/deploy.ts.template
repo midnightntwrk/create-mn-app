@@ -1,0 +1,182 @@
+import { type Contract, deployContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { type DiskStateProvider } from '@midnight-ntwrk/midnight-js-contracts/disk';
+import {
+  createBalancedTransaction,
+  type BalancedTransaction,
+} from '@midnight-ntwrk/midnight-js-contracts';
+import { type FinalizedTxData, type Ledger } from '@midnight-ntwrk/ledger';
+import { type MidnightProvider, encodeCoinPublicKey } from '@midnight-ntwrk/midnight-js-types';
+import { indexTransactionPublicData } from '@midnight-ntwrk/midnight-js-contracts';
+import { createProviders } from './providers/midnight-providers.js';
+import contract from '../contract.cjs';
+import {
+  MyFungibleTokenWitnesses,
+  createPrivateState,
+} from '../witnesses/MyFungibleTokenWitnesses.js';
+import { encodeString } from '../tests/MyFungibleTokenSimulator.js';
+import chalk from 'chalk';
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+const DEPLOYMENT_FILE = 'deployment.json';
+
+interface DeploymentInfo {
+  contractAddress: string;
+  deployedAt: string;
+  network: string;
+  tokenName: string;
+  tokenSymbol: string;
+  decimals: number;
+  initialSupply: bigint;
+  owner: string;
+}
+
+/**
+ * Deploy the MyFungibleToken contract to the Midnight network
+ */
+async function deployMyFungibleToken(
+  providers: {
+    midnightProvider: MidnightProvider;
+    walletProvider: any;
+    ledger: Ledger;
+    stateProvider: DiskStateProvider;
+  },
+  walletAddress: string
+): Promise<void> {
+  console.log(chalk.blue('\n📦 Deploying MyFungibleToken Contract...\n'));
+
+  // Get token parameters from environment
+  const tokenName = process.env.TOKEN_NAME || 'MyFungibleToken';
+  const tokenSymbol = process.env.TOKEN_SYMBOL || 'MFT';
+  const decimals = parseInt(process.env.TOKEN_DECIMALS || '18', 10);
+  const initialSupply = BigInt(process.env.INITIAL_SUPPLY || '1000000');
+
+  console.log(chalk.cyan('Token Configuration:'));
+  console.log(`  Name: ${tokenName}`);
+  console.log(`  Symbol: ${tokenSymbol}`);
+  console.log(`  Decimals: ${decimals}`);
+  console.log(`  Initial Supply: ${initialSupply.toString()}`);
+  console.log(`  Owner: ${walletAddress}\n`);
+
+  try {
+    // Encode parameters for the contract
+    const nameEncoded = encodeString(tokenName);
+    const symbolEncoded = encodeString(tokenSymbol);
+    const ownerKey = encodeCoinPublicKey(walletAddress);
+    
+    // Create initial private state
+    const initialPrivateState = createPrivateState();
+
+    // Deploy the contract
+    console.log(chalk.yellow('⏳ Deploying contract to network...'));
+    
+    const deploymentTransaction = await deployContract(
+      providers.midnightProvider,
+      {
+        contract,
+        initialPrivateState: initialPrivateState.serialize(),
+      },
+      {
+        privateStateKey: providers.walletProvider.privateStateKey,
+        witnesses: MyFungibleTokenWitnesses(),
+      },
+      providers.stateProvider,
+      // Constructor arguments: name, symbol, decimals, initialSupply, recipient, owner
+      nameEncoded,
+      symbolEncoded,
+      decimals,
+      initialSupply,
+      ownerKey, // recipient (receives initial supply)
+      ownerKey  // owner (contract owner)
+    );
+
+    const deployedContract = deploymentTransaction.result;
+
+    console.log(chalk.green('✓ Contract deployed successfully!\n'));
+
+    // Save deployment information
+    const deploymentInfo: DeploymentInfo = {
+      contractAddress: deployedContract.contractAddress,
+      deployedAt: new Date().toISOString(),
+      network: process.env.NETWORK || 'testnet',
+      tokenName,
+      tokenSymbol,
+      decimals,
+      initialSupply,
+      owner: walletAddress,
+    };
+
+    fs.writeFileSync(
+      path.join(process.cwd(), DEPLOYMENT_FILE),
+      JSON.stringify(deploymentInfo, (_, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      , 2)
+    );
+
+    console.log(chalk.green('📄 Deployment Information:'));
+    console.log(chalk.cyan(`  Contract Address: ${deployedContract.contractAddress}`));
+    console.log(chalk.cyan(`  Network: ${deploymentInfo.network}`));
+    console.log(chalk.cyan(`  Deployed At: ${deploymentInfo.deployedAt}`));
+    console.log(chalk.gray(`  Saved to: ${DEPLOYMENT_FILE}\n`));
+
+    console.log(chalk.green('✨ Deployment complete!\n'));
+    console.log(chalk.yellow('Next steps:'));
+    console.log(chalk.white('  1. Run') + chalk.cyan(' npm run cli ') + chalk.white('to interact with your contract'));
+    console.log(chalk.white('  2. Check') + chalk.cyan(` ${DEPLOYMENT_FILE} `) + chalk.white('for deployment details'));
+    console.log(chalk.white('  3. Use the contract address to interact with your token\n'));
+
+  } catch (error) {
+    console.error(chalk.red('❌ Deployment failed:'), error);
+    throw error;
+  }
+}
+
+/**
+ * Main deployment function
+ */
+async function main(): Promise<void> {
+  console.log(chalk.bold.blue('\n╔════════════════════════════════════════════╗'));
+  console.log(chalk.bold.blue('║  MyFungibleToken Contract Deployment      ║'));
+  console.log(chalk.bold.blue('╚════════════════════════════════════════════╝\n'));
+
+  try {
+    // Check if already deployed
+    if (fs.existsSync(DEPLOYMENT_FILE)) {
+      console.log(chalk.yellow('⚠️  Warning: Contract appears to be already deployed.'));
+      console.log(chalk.gray(`   Deployment info found in ${DEPLOYMENT_FILE}`));
+      
+      const deploymentInfo = JSON.parse(fs.readFileSync(DEPLOYMENT_FILE, 'utf8'));
+      console.log(chalk.cyan(`   Contract Address: ${deploymentInfo.contractAddress}`));
+      console.log(chalk.cyan(`   Deployed At: ${deploymentInfo.deployedAt}\n`));
+      
+      console.log(chalk.yellow('   To redeploy, delete the deployment.json file first.\n'));
+      return;
+    }
+
+    // Initialize providers
+    console.log(chalk.yellow('🔌 Connecting to Midnight network...'));
+    const { providers, walletAddress } = await createProviders();
+    console.log(chalk.green('✓ Connected successfully!\n'));
+
+    // Deploy the contract
+    await deployMyFungibleToken(providers, walletAddress);
+
+    // Cleanup
+    await providers.walletProvider.close();
+    console.log(chalk.gray('Connection closed.\n'));
+
+  } catch (error) {
+    console.error(chalk.red('\n❌ Error during deployment:'), error);
+    process.exit(1);
+  }
+}
+
+// Run the deployment
+main().catch((error) => {
+  console.error(chalk.red('Fatal error:'), error);
+  process.exit(1);
+});

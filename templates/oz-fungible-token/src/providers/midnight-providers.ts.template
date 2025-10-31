@@ -1,0 +1,207 @@
+import {
+  type MidnightProvider,
+  WalletProvider,
+  type ZswapChain,
+} from '@midnight-ntwrk/midnight-js-types';
+import { type Ledger, httpClientProofProvider } from '@midnight-ntwrk/ledger';
+import { createZswapNetworkProofProvider } from '@midnight-ntwrk/compact-runtime';
+import { type DiskStateProvider, DiskStateStore } from '@midnight-ntwrk/midnight-js-contracts/disk';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { FetchZswapNetworkProofProvider } from '@midnight-ntwrk/midnight-js-fetch-zswap-network-proof-provider';
+import { http } from '@midnight-ntwrk/midnight-js-http';
+import chalk from 'chalk';
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+// Wallet file path
+const WALLET_FILE = 'wallet.json';
+
+interface WalletData {
+  privateKey: string;
+  address: string;
+}
+
+/**
+ * Load wallet from wallet.json file
+ */
+function loadWallet(): { privateKey: string; address: string } {
+  const walletPath = path.join(process.cwd(), WALLET_FILE);
+
+  if (!fs.existsSync(walletPath)) {
+    console.error(chalk.red(`\n❌ Wallet file not found: ${WALLET_FILE}`));
+    console.log(chalk.yellow('\n💡 Run') + chalk.cyan(' npm run generate-wallet ') + chalk.yellow('to create a new wallet\n'));
+    process.exit(1);
+  }
+
+  try {
+    const walletData: WalletData = JSON.parse(fs.readFileSync(walletPath, 'utf8'));
+    
+    if (!walletData.privateKey || !walletData.address) {
+      throw new Error('Invalid wallet file format');
+    }
+
+    return {
+      privateKey: walletData.privateKey,
+      address: walletData.address,
+    };
+  } catch (error) {
+    console.error(chalk.red('\n❌ Error loading wallet file:'), error);
+    console.log(chalk.yellow('\n💡 Make sure wallet.json is valid. Run') + chalk.cyan(' npm run generate-wallet ') + chalk.yellow('to create a new one\n'));
+    process.exit(1);
+  }
+}
+
+/**
+ * Get network configuration from environment
+ */
+function getNetworkConfig(): {
+  nodeUrl: string;
+  indexerUrl: string;
+  indexerWsUrl: string;
+  proofServerUrl: string;
+  network: string;
+} {
+  const network = process.env.NETWORK || 'testnet';
+  const nodeUrl = process.env.NODE_URL || 'https://rpc.testnet.midnight.network';
+  const proofServerUrl = process.env.PROOF_SERVER_URL || 'http://localhost:6300';
+
+  // Derive indexer URLs from node URL
+  const indexerUrl = nodeUrl.replace('rpc.', 'indexer.');
+  const indexerWsUrl = indexerUrl.replace('https://', 'wss://');
+
+  return {
+    nodeUrl,
+    indexerUrl,
+    indexerWsUrl,
+    proofServerUrl,
+    network,
+  };
+}
+
+/**
+ * Create and initialize all providers needed for contract interaction
+ */
+export async function createProviders(): Promise<{
+  providers: {
+    midnightProvider: MidnightProvider;
+    walletProvider: WalletProvider;
+    ledger: Ledger;
+    stateProvider: DiskStateProvider;
+  };
+  walletAddress: string;
+}> {
+  // Load wallet
+  const wallet = loadWallet();
+  const walletAddress = wallet.address;
+
+  // Get network configuration
+  const config = getNetworkConfig();
+
+  console.log(chalk.gray('Network Configuration:'));
+  console.log(chalk.gray(`  Network: ${config.network}`));
+  console.log(chalk.gray(`  Node URL: ${config.nodeUrl}`));
+  console.log(chalk.gray(`  Indexer URL: ${config.indexerUrl}`));
+  console.log(chalk.gray(`  Proof Server: ${config.proofServerUrl}`));
+  console.log(chalk.gray(`  Wallet Address: ${walletAddress}\n`));
+
+  // Create private state provider
+  const privateStateProvider = levelPrivateStateProvider({
+    privateStateStoreName: '.private',
+  });
+
+  // Create public data provider (indexer)
+  const publicDataProvider = indexerPublicDataProvider(
+    http(config.indexerUrl),
+    config.indexerWsUrl
+  );
+
+  // Create proof provider
+  const proofProvider = httpClientProofProvider(http(config.proofServerUrl));
+
+  // Create zswap network proof provider
+  const zswapNetworkProofProvider = new FetchZswapNetworkProofProvider(
+    config.nodeUrl,
+    config.network as ZswapChain
+  );
+
+  // Create wallet provider
+  const walletProvider = await WalletProvider.build(
+    privateStateProvider,
+    publicDataProvider,
+    proofProvider,
+    zswapNetworkProofProvider,
+    wallet.privateKey
+  );
+
+  // Create Midnight provider
+  const midnightProvider: MidnightProvider = {
+    privateStateProvider,
+    publicDataProvider,
+    proofProvider,
+    zkConfigProvider: createZswapNetworkProofProvider(config.network as ZswapChain),
+    walletProvider,
+  };
+
+  // Create ledger
+  const ledger: Ledger = {
+    publicDataProvider,
+    submitTx: async (tx) => {
+      return walletProvider.submitTx(tx);
+    },
+    balanceAt: async (address, block) => {
+      return walletProvider.state.value.balances[address] || 0n;
+    },
+    getCurrentBlock: async () => {
+      return walletProvider.state.value.currentBlock || 0n;
+    },
+  };
+
+  // Create state provider
+  const stateProvider: DiskStateProvider = new DiskStateStore({
+    storePath: '.state',
+  });
+
+  return {
+    providers: {
+      midnightProvider,
+      walletProvider,
+      ledger,
+      stateProvider,
+    },
+    walletAddress,
+  };
+}
+
+/**
+ * Load deployed contract information
+ */
+export function loadDeploymentInfo(): {
+  contractAddress: string;
+  tokenName: string;
+  tokenSymbol: string;
+  decimals: number;
+} | null {
+  const deploymentPath = path.join(process.cwd(), 'deployment.json');
+
+  if (!fs.existsSync(deploymentPath)) {
+    return null;
+  }
+
+  try {
+    const deploymentInfo = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+    return {
+      contractAddress: deploymentInfo.contractAddress,
+      tokenName: deploymentInfo.tokenName,
+      tokenSymbol: deploymentInfo.tokenSymbol,
+      decimals: deploymentInfo.decimals,
+    };
+  } catch (error) {
+    console.error(chalk.red('Error loading deployment info:'), error);
+    return null;
+  }
+}
