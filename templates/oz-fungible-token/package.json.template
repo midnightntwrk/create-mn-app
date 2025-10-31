@@ -11,9 +11,6 @@
     "setup": "npm run compile && npm run build && npm run deploy",
     "compile": "compact compile contracts/MyFungibleToken.compact contracts/managed/MyFungibleToken",
     "build": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
     "deploy": "node dist/deploy.js",
     "cli": "node dist/cli.js",
     "generate-wallet": "node dist/utils/wallet-generator.js",
@@ -42,13 +39,10 @@
     "inquirer": "^9.2.0"
   },
   "devDependencies": {
-    "@openzeppelin-compact/contracts": "github:OpenZeppelin/compact-contracts#main",
-    "@openzeppelin-compact/contracts-simulator": "github:OpenZeppelin/compact-contracts#main",
     "@types/node": "^24.4.0",
     "@types/ws": "^8.5.10",
     "@types/inquirer": "^9.0.0",
     "typescript": "^5.9.2",
-    "vitest": "^2.1.0",
     "nodemon": "^3.0.1",
     "concurrently": "^8.2.0"
   },

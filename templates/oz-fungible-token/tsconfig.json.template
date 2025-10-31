@@ -14,8 +14,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["vitest/globals", "node"]
+    "types": ["node"]
   },
-  "include": ["src/**/*", "tests/**/*", "witnesses/**/*"],
+  "include": ["src/**/*", "witnesses/**/*"],
   "exclude": ["node_modules", "dist", "contracts/managed"]
 }

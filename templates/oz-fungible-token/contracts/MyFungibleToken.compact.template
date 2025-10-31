@@ -11,12 +11,12 @@ pragma language_version >= 0.17.0;
 
 import CompactStandardLibrary;
 
-// Import OpenZeppelin modules
-import "./node_modules/@openzeppelin-compact/contracts/src/token/FungibleToken"
+// Import OpenZeppelin modules (vendored in vendor/openzeppelin/)
+import "../vendor/openzeppelin/token/FungibleToken"
   prefix FungibleToken_;
-import "./node_modules/@openzeppelin-compact/contracts/src/access/Ownable"
+import "../vendor/openzeppelin/access/Ownable"
   prefix Ownable_;
-import "./node_modules/@openzeppelin-compact/contracts/src/security/Pausable"
+import "../vendor/openzeppelin/security/Pausable"
   prefix Pausable_;
 
 /**

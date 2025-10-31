@@ -6,21 +6,30 @@ This template provides a complete ERC-20-like token with advanced features inclu
 
 ## ⚠️ Important Notice
 
-> **OpenZeppelin Compact Contracts Dependency**  
-> This project relies heavily on [OpenZeppelin Compact Contracts](https://github.com/OpenZeppelin/compact-contracts), which is currently a **Work In Progress (WIP)** project. The dependencies are pulled directly from the `main` branch of the OpenZeppelin repository.
+> **OpenZeppelin Compact Contracts - Vendored Version**  
+> This project includes [OpenZeppelin Compact Contracts](https://github.com/OpenZeppelin/compact-contracts) that are **vendored** (copied directly into the `vendor/openzeppelin/` directory). OpenZeppelin Compact Contracts is currently a **Work In Progress (WIP)** and not yet published to npm.
 >
 > **What this means:**
-> - ✅ You always get the latest features and security updates from OpenZeppelin
-> - ⚠️ The OpenZeppelin contracts are still under active development
-> - ⚠️ Breaking changes may occur as OpenZeppelin evolves their Compact implementation
-> - ⚠️ API interfaces and functionality may change without notice
+> - ✅ **Works out of the box** - No external dependencies to install
+> - ✅ **Stable snapshot** - Uses tested OpenZeppelin contracts from October 2025
+> - ⚠️ **Manual updates** - OpenZeppelin contracts are vendored, not auto-updated
+> - ⚠️ **WIP Project** - OpenZeppelin Compact Contracts is still under active development
+> - ⚠️ **Limited testing** - Full test suite requires OpenZeppelin's simulator (not yet published)
+>
+> **Included OpenZeppelin Modules (in `vendor/openzeppelin/`):**
+> - `token/FungibleToken.compact` - ERC-20-like token implementation
+> - `access/Ownable.compact` - Ownership management
+> - `security/Pausable.compact` - Emergency pause functionality
+> - `utils/Utils.compact` - Common utility functions
 >
 > **Recommendations:**
 > - 🧪 **Test thoroughly** before deploying to mainnet
 > - 📝 **Review OpenZeppelin's repository** for updates: https://github.com/OpenZeppelin/compact-contracts
-> - 🔄 **Run tests regularly** to catch any breaking changes
+> - 🔄 **Check for updates** periodically and update vendored contracts if needed
 > - 💬 **Join the community** for updates and support
 > - 🚀 **Start with testnet** deployments to validate functionality
+>
+> **When OpenZeppelin publishes to npm:** You can replace the vendored contracts with npm packages for automatic updates.
 >
 > This template is provided as-is and should be used for development and testing purposes. Always perform your own security audits before production deployment.
 
@@ -107,24 +116,7 @@ npm run proof-server
 
 This starts a Docker container with the Midnight proof server on port 6300.
 
-### 5. Run Tests (Recommended First Step)
-
-Test your contract locally without deploying:
-
-```bash
-npm test
-```
-
-This runs 40+ tests covering:
-- Token deployment and initialization
-- Transfer operations
-- Approval and transferFrom
-- Minting and burning
-- Pausable functionality
-- Ownership management
-- Edge cases and complex scenarios
-
-### 6. Deploy Contract
+### 5. Deploy Contract
 
 Deploy your token to the Midnight testnet:
 
@@ -138,7 +130,7 @@ This will:
 - Save deployment info to `deployment.json`
 - Display your contract address
 
-### 7. Interact with Contract
+### 6. Interact with Contract
 
 Use the interactive CLI to interact with your deployed token:
 
@@ -233,11 +225,11 @@ npm run proof-server
 
 ## 🧪 Testing
 
-This template uses **Vitest** and **OpenZeppelin's Simulator** for fast, reliable testing.
+This template uses **Vitest** for testing. Full test coverage with Open Zeppelin's simulator will be available once they publish their testing tools to npm.
 
-### Test Structure
+### Current Test Status
 
-The test suite (`tests/MyFungibleToken.test.ts`) includes 40+ tests organized into:
+⚠️ **Note**: The comprehensive test suite is prepared but requires OpenZeppelin's simulator package which is not yet published. Once available, the test suite includes 40+ tests organized into:
 
 1. **Deployment & Initialization** (5 tests)
    - Token metadata (name, symbol, decimals)
