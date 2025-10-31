@@ -1,0 +1,7 @@
+{
+  "watch": ["src", "contracts"],
+  "ext": "ts,compact",
+  "ignore": ["src/**/*.spec.ts", "contracts/managed"],
+  "exec": "npm run build && npm run cli",
+  "delay": "1000"
+}

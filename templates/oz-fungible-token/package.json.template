@@ -1,0 +1,67 @@
+{
+  "name": "{{projectName}}",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "OpenZeppelin Fungible Token (ERC-20) on Midnight Network",
+  "author": "{{author}}",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently \"npm run proof-server\" \"npm run watch\"",
+    "watch": "nodemon --config nodemon.json",
+    "setup": "npm run compile && npm run build && npm run deploy",
+    "compile": "compact compile contracts/MyFungibleToken.compact contracts/managed/MyFungibleToken",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "deploy": "node dist/deploy.js",
+    "cli": "node dist/cli.js",
+    "generate-wallet": "node dist/utils/wallet-generator.js",
+    "health-check": "node dist/utils/health-check.js",
+    "reset": "rm -rf contracts/managed deployment.json dist && npm run compile",
+    "validate": "tsc --noEmit && npm run compile",
+    "clean": "rm -rf dist contracts/managed deployment.json",
+    "proof-server": "docker run -p 6300:6300 midnightnetwork/proof-server -- 'midnight-proof-server --network testnet'"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "^0.8.1",
+    "@midnight-ntwrk/ledger": "^4.0.0",
+    "@midnight-ntwrk/midnight-js-contracts": "2.0.2",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "2.0.2",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "2.0.2",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "2.0.2",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "2.0.2",
+    "@midnight-ntwrk/midnight-js-network-id": "2.0.2",
+    "@midnight-ntwrk/midnight-js-types": "2.0.2",
+    "@midnight-ntwrk/wallet": "5.0.0",
+    "@midnight-ntwrk/wallet-api": "5.0.0",
+    "@midnight-ntwrk/zswap": "^4.0.0",
+    "ws": "^8.18.3",
+    "dotenv": "^16.3.1",
+    "chalk": "^5.3.0",
+    "inquirer": "^9.2.0"
+  },
+  "devDependencies": {
+    "@openzeppelin-compact/contracts": "github:OpenZeppelin/compact-contracts#main",
+    "@openzeppelin-compact/contracts-simulator": "github:OpenZeppelin/compact-contracts#main",
+    "@types/node": "^24.4.0",
+    "@types/ws": "^8.5.10",
+    "@types/inquirer": "^9.0.0",
+    "typescript": "^5.9.2",
+    "vitest": "^2.1.0",
+    "nodemon": "^3.0.1",
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "midnight",
+    "blockchain",
+    "zero-knowledge",
+    "privacy",
+    "openzeppelin",
+    "fungible-token",
+    "erc20"
+  ]
+}

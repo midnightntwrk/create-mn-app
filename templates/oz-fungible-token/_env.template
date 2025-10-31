@@ -1,0 +1,22 @@
+# Network Configuration
+NETWORK=testnet
+NODE_URL=https://rpc.testnet.midnight.network
+
+# Proof Server Configuration
+PROOF_SERVER_URL=http://127.0.0.1:6300
+AUTO_START_PROOF_SERVER=true
+
+# Wallet Configuration (DO NOT COMMIT THESE VALUES)
+# Generate wallet using: npm run generate-wallet
+PRIVATE_KEY=your-private-key-here
+WALLET_ADDRESS=your-wallet-address-here
+
+# Token Configuration
+TOKEN_NAME=My Token
+TOKEN_SYMBOL=MTK
+TOKEN_DECIMALS=18
+INITIAL_SUPPLY=1000000
+
+# Contract Deployment
+GAS_LIMIT=5000000
+GAS_PRICE=1000000000
