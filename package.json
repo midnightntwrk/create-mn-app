@@ -66,10 +66,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Olanetsoft/create-mn-app.git"
+    "url": "https://github.com/midnightntwrk/create-mn-app.git"
   },
-  "homepage": "https://github.com/Olanetsoft/create-mn-app#readme",
+  "homepage": "https://github.com/midnightntwrk/create-mn-app#readme",
   "bugs": {
-    "url": "https://github.com/Olanetsoft/create-mn-app/issues"
+    "url": "https://github.com/midnightntwrk/create-mn-app/issues"
   }
 }
