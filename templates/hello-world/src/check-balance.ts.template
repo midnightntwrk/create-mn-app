@@ -19,6 +19,9 @@ globalThis.WebSocket = WebSocket;
 // Configure for Midnight Testnet
 setNetworkId(NetworkId.TestNet);
 
+// Timeout constant (in milliseconds)
+const WALLET_SYNC_TIMEOUT_MS = 300000; // 5 minutes
+
 async function checkBalance() {
   try {
     console.log();
@@ -52,18 +55,19 @@ async function checkBalance() {
     wallet.start();
 
     // Wait for sync to ensure accurate balance
-    console.log(chalk.blue("⌛️ Syncing wallet..."));
+    console.log(chalk.blue("⏳ Syncing wallet..."));
     try {
       await Rx.firstValueFrom(
         wallet.state().pipe(
           Rx.filter((s) => s.syncProgress?.synced === true),
-          Rx.timeout(300000) // 5 minute timeout
+          Rx.timeout(WALLET_SYNC_TIMEOUT_MS)
         )
       );
-      console.log("✅ Wallet synced!");
+      console.log(chalk.green("✅ Wallet synced!"));
     } catch (error) {
-      console.error("❌ Failed to sync wallet:", error instanceof Error ? error.message : String(error));
-      console.log("💡 Balance may be inaccurate. Check your network connection.");
+      console.error(chalk.red("❌ Failed to sync wallet:", error instanceof Error ? error.message : String(error)));
+      console.log("💡 Check your network connection and try again.");
+      process.exit(1);
     }
 
     const state = await Rx.firstValueFrom(wallet.state());
