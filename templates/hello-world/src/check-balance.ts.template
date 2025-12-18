@@ -65,8 +65,22 @@ async function checkBalance() {
       );
       console.log(chalk.green("✅ Wallet synced!"));
     } catch (error) {
-      console.error(chalk.red("❌ Failed to sync wallet:", error instanceof Error ? error.message : String(error)));
-      console.log("💡 Check your network connection and try again.");
+      if (error instanceof Rx.TimeoutError) {
+        console.error(
+          chalk.red(
+            `❌ Wallet sync timed out after ${WALLET_SYNC_TIMEOUT_MS / 60000} minutes.`
+          )
+        );
+        console.log("💡 The network may be busy or unreachable. Please try again later.");
+      } else {
+        console.error(
+          chalk.red(
+            "❌ Failed to sync wallet: " +
+              (error instanceof Error ? error.message : String(error))
+          )
+        );
+        console.log("💡 Check your network connection and try again.");
+      }
       process.exit(1);
     }
 
