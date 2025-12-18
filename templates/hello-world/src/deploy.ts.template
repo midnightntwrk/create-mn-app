@@ -30,13 +30,17 @@ globalThis.WebSocket = WebSocket;
 // Configure for Midnight Testnet
 setNetworkId(NetworkId.TestNet);
 
+// Timeout constants (in milliseconds)
+const WALLET_SYNC_TIMEOUT_MS = 300000; // 5 minutes
+const FUNDING_TIMEOUT_MS = 600000; // 10 minutes
+
 const waitForFunds = (wallet: Wallet) =>
   Rx.firstValueFrom(
     wallet.state().pipe(
       Rx.filter((state) => state.syncProgress?.synced === true),
       Rx.map((s) => s.balances[nativeToken()] ?? 0n),
       Rx.filter((balance) => balance > 0n),
-      Rx.timeout(600000) // 10 minute timeout for funding
+      Rx.timeout(FUNDING_TIMEOUT_MS)
     )
   );
 
@@ -82,7 +86,7 @@ async function main() {
       await Rx.firstValueFrom(
         wallet.state().pipe(
           Rx.filter((s) => s.syncProgress?.synced === true),
-          Rx.timeout(300000) // 5 minute timeout
+          Rx.timeout(WALLET_SYNC_TIMEOUT_MS)
         )
       );
       console.log(chalk.green("✅ Wallet synced!"));
