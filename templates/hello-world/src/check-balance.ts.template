@@ -52,7 +52,7 @@ async function checkBalance() {
     wallet.start();
 
     // Wait for sync to ensure accurate balance
-    console.log(chalk.blue("⌛️ Syncing wallet..."));
+    console.log(chalk.blue("⏳ Syncing wallet..."));
     try {
       await Rx.firstValueFrom(
         wallet.state().pipe(
