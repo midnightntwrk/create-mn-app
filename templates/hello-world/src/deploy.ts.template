@@ -107,7 +107,7 @@ async function main() {
         console.log("💡 Check your network connection and wallet configuration, then try again.");
       }
       try {
-        await wallet.stop();
+        await wallet.close();
       } catch (stopError) {
         console.error(
           chalk.red(
