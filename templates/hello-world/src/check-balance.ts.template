@@ -82,6 +82,16 @@ async function checkBalance() {
         );
         console.log("💡 Check your network connection and try again.");
       }
+      try {
+        await wallet.close();
+      } catch (closeError) {
+        console.error(
+          chalk.red(
+            "⚠️ Failed to close wallet cleanly: " +
+              (closeError instanceof Error ? closeError.message : String(closeError))
+          )
+        );
+      }
       process.exit(1);
     }
 
