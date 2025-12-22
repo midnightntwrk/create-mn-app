@@ -15,6 +15,7 @@ import { WebSocket } from "ws";
 import * as path from "path";
 import * as fs from "fs";
 import * as Rx from "rxjs";
+import chalk from "chalk";
 import { MidnightProviders } from "./providers/midnight-providers.js";
 import { EnvironmentManager } from "./utils/environment.js";
 
@@ -24,6 +25,9 @@ globalThis.WebSocket = WebSocket;
 
 // Configure for Midnight Testnet
 setNetworkId(NetworkId.TestNet);
+
+// Timeout for wallet synchronization operations (in milliseconds)
+const WALLET_SYNC_TIMEOUT_MS = 300000; // 5 minutes
 
 async function main() {
   const rl = readline.createInterface({
@@ -54,7 +58,7 @@ async function main() {
     console.log("Connecting to Midnight network...");
 
     // Build wallet
-    const wallet = await WalletBuilder.buildFromSeed(
+    const wallet = await WalletBuilder.build(
       networkConfig.indexer,
       networkConfig.indexerWS,
       networkConfig.proofServer,
@@ -67,9 +71,46 @@ async function main() {
     wallet.start();
 
     // Wait for sync
-    await Rx.firstValueFrom(
-      wallet.state().pipe(Rx.filter((s) => s.syncProgress?.synced === true))
-    );
+    console.log("⏳ Syncing wallet...");
+    try {
+      await Rx.firstValueFrom(
+        wallet.state().pipe(
+          Rx.filter((s) => s.syncProgress?.synced === true),
+          Rx.timeout(WALLET_SYNC_TIMEOUT_MS)
+        )
+      );
+      console.log(chalk.green("✅ Wallet synced!"));
+      console.log();
+    } catch (error) {
+      if (error instanceof Rx.TimeoutError) {
+        const timeoutMinutes = WALLET_SYNC_TIMEOUT_MS / 60000;
+        console.error(
+          chalk.red(
+            `❌ Wallet sync timed out after ${timeoutMinutes} minute${timeoutMinutes === 1 ? "" : "s"}.`
+          )
+        );
+        console.log("💡 The network might be slow or temporarily unavailable. Please try again later.");
+      } else {
+        console.error(
+          chalk.red(
+            "❌ Failed to sync wallet:",
+            error instanceof Error ? error.message : String(error)
+          )
+        );
+        console.log("💡 A network or wallet error occurred during sync. Check your connection and configuration, then try again.");
+      }
+      try {
+        await wallet.close();
+      } catch (closeError) {
+        console.error(
+          chalk.red(
+            "⚠️ Failed to close wallet cleanly:",
+            closeError instanceof Error ? closeError.message : String(closeError)
+          )
+        );
+      }
+      process.exit(1);
+    }
 
     // Load contract
     const contractPath = path.join(process.cwd(), "contracts");

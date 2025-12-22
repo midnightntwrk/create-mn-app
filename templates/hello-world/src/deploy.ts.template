@@ -30,20 +30,17 @@ globalThis.WebSocket = WebSocket;
 // Configure for Midnight Testnet
 setNetworkId(NetworkId.TestNet);
 
+// Timeout for wallet synchronization operations (in milliseconds)
+const WALLET_SYNC_TIMEOUT_MS = 300000; // 5 minutes
+// Timeout for waiting for faucet funds to arrive (in milliseconds)
+const FUNDING_TIMEOUT_MS = 600000; // 10 minutes
+
 const waitForFunds = (wallet: Wallet) =>
   Rx.firstValueFrom(
     wallet.state().pipe(
-      Rx.tap((state) => {
-        if (state.syncProgress) {
-          console.log(
-            `Sync progress: synced=${state.syncProgress.synced}, sourceGap=${state.syncProgress.lag.sourceGap}, applyGap=${state.syncProgress.lag.applyGap}`
-          );
-        }
-      }),
-      Rx.filter((state) => state.syncProgress?.synced === true),
       Rx.map((s) => s.balances[nativeToken()] ?? 0n),
       Rx.filter((balance) => balance > 0n),
-      Rx.tap((balance) => console.log(`Wallet funded with balance: ${balance}`))
+      Rx.timeout(FUNDING_TIMEOUT_MS)
     )
   );
 
@@ -71,7 +68,7 @@ async function main() {
 
     // Build wallet from seed
     console.log("Building wallet...");
-    const wallet = await WalletBuilder.buildFromSeed(
+    const wallet = await WalletBuilder.build(
       networkConfig.indexer,
       networkConfig.indexerWS,
       networkConfig.proofServer,
@@ -82,6 +79,46 @@ async function main() {
     );
 
     wallet.start();
+    // Wait for wallet to sync before checking balance
+    console.log(chalk.blue("⏳ Syncing wallet..."));
+    try {
+      await Rx.firstValueFrom(
+        wallet.state().pipe(
+          Rx.filter((s) => s.syncProgress?.synced === true),
+          Rx.timeout(WALLET_SYNC_TIMEOUT_MS)
+        )
+      );
+      console.log(chalk.green("✅ Wallet synced!"));
+    } catch (error) {
+      if (error instanceof Rx.TimeoutError) {
+        console.error(
+          chalk.red(
+            `❌ Wallet sync timed out after ${WALLET_SYNC_TIMEOUT_MS / 60000} minute${WALLET_SYNC_TIMEOUT_MS / 60000 === 1 ? "" : "s"}.`
+          )
+        );
+        console.log("💡 The network might be slow or unavailable. Please verify your node and network connection, then try again.");
+      } else {
+        console.error(
+          chalk.red(
+            "❌ Failed to sync wallet:",
+            error instanceof Error ? error.message : String(error)
+          )
+        );
+        console.log("💡 Check your network connection and wallet configuration, then try again.");
+      }
+      try {
+        await wallet.close();
+      } catch (stopError) {
+        console.error(
+          chalk.red(
+            "⚠️ Failed to gracefully stop wallet after error:",
+            stopError instanceof Error ? stopError.message : String(stopError)
+          )
+        );
+      }
+      process.exit(1);
+    }
+
     const state = await Rx.firstValueFrom(wallet.state());
 
     console.log(chalk.cyan.bold("📍 Wallet Address:"));
@@ -114,7 +151,24 @@ async function main() {
       console.log(chalk.white("   • ") + chalk.cyan("Once funded, run: ") + chalk.yellow.bold("npm run deploy"));
       console.log();
       console.log(chalk.blue("⏳ Waiting to receive tokens..."));
-      balance = await waitForFunds(wallet);
+      try {
+        balance = await waitForFunds(wallet);
+      } catch (error) {
+        console.error(chalk.red("❌ Wallet is synced, but no funds were detected after waiting up to 10 minutes for funding."));
+        console.log();
+        console.log(chalk.yellow.bold("💡 Troubleshooting:"));
+        console.log(chalk.white("   • ") + chalk.cyan("Check if the faucet transaction was successful"));
+        console.log(chalk.white("   • ") + chalk.cyan("Verify your wallet address is correct"));
+        console.log(chalk.white("   • ") + chalk.cyan("Wait a bit longer and try again"));
+        console.log(chalk.white("   • ") + chalk.cyan("Check network connectivity"));
+        console.log();
+        try {
+          await wallet.close();
+        } catch (closeError) {
+          console.error(chalk.red("⚠️ Failed to close wallet cleanly before exit:"), closeError);
+        }
+        process.exit(1);
+      }
     }
 
     console.log(chalk.yellow.bold("💰 Balance: ") + chalk.green.bold(`${balance} DUST`));
