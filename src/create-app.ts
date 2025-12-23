@@ -140,6 +140,43 @@ export async function createApp(
     selectedTemplate = response.template;
   }
 
+  // Handle Student Template selection details
+  if (selectedTemplate === "student") {
+    // Import here to avoid circular dependencies if any
+    const { studentExamples } = await import("./utils/templates.js");
+    let selectedExample = studentExamples[0];
+
+    // Interactive mode: ask which example
+    const response = await prompts({
+      type: "select",
+      name: "example",
+      message: "Which example project would you like to learn from?",
+      choices: studentExamples.map((e) => ({
+        title: e.display,
+        description: e.description,
+        value: e.name,
+      })),
+      initial: 0,
+    });
+
+    if (!response.example) {
+      console.log(chalk.yellow("\n✖ Operation cancelled."));
+      process.exit(0);
+    }
+
+    selectedExample =
+      studentExamples.find((e) => e.name === response.example) ||
+      selectedExample;
+
+    // Override the generic student template with specific example details
+    const studentTemplate = getTemplate("student");
+    if (studentTemplate) {
+      studentTemplate.repo = selectedExample.repo;
+      studentTemplate.contractName = selectedExample.contractName;
+      studentTemplate.managedContractName = selectedExample.managedContractName;
+    }
+  }
+
   // Validate template
   if (!isValidTemplate(selectedTemplate)) {
     const template = getTemplate(selectedTemplate);
@@ -437,6 +474,79 @@ async function createRemoteTemplate(
   } catch (error) {
     cloneSpinner.fail("Failed to clone repository");
     throw error;
+  }
+
+  // Strip contracts if requested (for student templates)
+  if (template.stripContracts) {
+    const stripSpinner = ora("Setting up student environment...").start();
+
+    try {
+      const contractPath = path.join(projectPath, "contract");
+      const srcPath = path.join(contractPath, "src");
+
+      // Selective strip: Remove everything in src except 'test'
+      if (await fs.pathExists(srcPath)) {
+        const items = await fs.readdir(srcPath);
+        for (const item of items) {
+          if (item !== "test") {
+            await fs.remove(path.join(srcPath, item));
+          }
+        }
+      } else {
+        // Should not happen with a valid clone, but ensure it exists
+        await fs.ensureDir(srcPath);
+      }
+
+      const contractName = template.contractName || "Contract";
+      const managedName = template.managedContractName || "contract";
+      const copyright = template.copyrightOwner || "Midnight Foundation";
+      const repoName = template.repo || "midnightntwrk/example-project";
+
+      // Update README to guide student
+      await fs.writeFile(
+        path.join(contractPath, "README.md"),
+        `# Contract Workspace
+
+This is where you will write your Compact smart contract.
+
+## Next Steps
+
+Please follow the instructions in **Midnight Academy Module 6** to complete your contract.
+
+You will need to:
+1.  Create \`src/contract.compact\` and write your logic.
+2.  Create \`src/index.ts\` to export your contract interfaces.
+3.  Run \`npm run test\` to validate your contract against the provided tests in \`src/test\`.
+
+### boilerplate for src/index.ts
+
+\`\`\`typescript
+// This file is part of ${repoName}.
+// Copyright (C) 2025 ${copyright}
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0 (the "License");
+// You may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+export * as ${contractName} from "./managed/${managedName}/contract/index.cjs";
+export * from "./witnesses";
+\`\`\`
+`
+      );
+
+      stripSpinner.succeed("Student environment prepared");
+    } catch (error) {
+      stripSpinner.fail("Failed to setup student environment");
+      throw error;
+    }
   }
 
   // Initialize git (since we removed .git from cloned repo)
