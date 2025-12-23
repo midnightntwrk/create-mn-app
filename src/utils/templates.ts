@@ -32,7 +32,31 @@ export interface Template {
   nodeVersion?: number;
   requiresCompactCompiler?: boolean;
   compactVersion?: string;
+  stripContracts?: boolean;
+  contractName?: string;
+  managedContractName?: string;
+  copyrightOwner?: string;
 }
+
+export interface StudentExample {
+  name: string;
+  display: string;
+  description: string;
+  repo: string;
+  contractName: string;
+  managedContractName: string;
+}
+
+export const studentExamples: StudentExample[] = [
+  {
+    name: "counter",
+    display: "Counter",
+    description: "Simple increment/decrement counter",
+    repo: "midnightntwrk/example-counter",
+    contractName: "Counter",
+    managedContractName: "counter",
+  },
+];
 
 export const templates: Template[] = [
   {
@@ -52,6 +76,18 @@ export const templates: Template[] = [
     nodeVersion: 22,
     requiresCompactCompiler: true,
     compactVersion: "0.23.0",
+  },
+  {
+    name: "student",
+    display: "Student Project",
+    description: "Learn by building a contract from scratch (select example)",
+    available: true,
+    type: "remote",
+    repo: "midnightntwrk/example-counter", // Default, will be overridden
+    nodeVersion: 22,
+    requiresCompactCompiler: true,
+    compactVersion: "0.23.0",
+    stripContracts: true,
   },
   {
     name: "bboard",
