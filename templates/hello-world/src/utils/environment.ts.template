@@ -67,8 +67,10 @@ export class EnvironmentManager {
       contractName
     );
     const keysPath = path.join(contractPath, "keys");
-    const contractModulePath = path.join(contractPath, "contract", "index.cjs");
+    // Check for both .js (ESM) and .cjs (CommonJS) outputs
+    const contractModuleJs = path.join(contractPath, "contract", "index.js");
+    const contractModuleCjs = path.join(contractPath, "contract", "index.cjs");
 
-    return fs.existsSync(keysPath) && fs.existsSync(contractModulePath);
+    return fs.existsSync(keysPath) && (fs.existsSync(contractModuleJs) || fs.existsSync(contractModuleCjs));
   }
 }
