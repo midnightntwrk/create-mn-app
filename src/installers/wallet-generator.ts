@@ -29,7 +29,7 @@ export class WalletGenerator {
 # Generated on ${new Date().toISOString()}
 
 # Network Configuration
-MIDNIGHT_NETWORK=testnet
+MIDNIGHT_NETWORK=preprod
 PROOF_SERVER_URL=http://127.0.0.1:6300
 
 # Wallet Configuration (KEEP PRIVATE!)
@@ -56,7 +56,7 @@ AUTO_START_PROOF_SERVER=true
 # Copy this file to .env and fill in your values
 
 # Network Configuration
-MIDNIGHT_NETWORK=testnet
+MIDNIGHT_NETWORK=preprod
 PROOF_SERVER_URL=http://127.0.0.1:6300
 
 # Wallet Configuration (KEEP PRIVATE!)

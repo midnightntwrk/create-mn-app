@@ -6,8 +6,6 @@ import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-p
 import { NodeZkConfigProvider } from "@midnight-ntwrk/midnight-js-node-zk-config-provider";
 import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
 import {
-  NetworkId,
-  setNetworkId,
   getZswapNetworkId,
   getLedgerNetworkId,
 } from "@midnight-ntwrk/midnight-js-network-id";
@@ -27,8 +25,8 @@ import { EnvironmentManager } from "./utils/environment.js";
 // @ts-ignore
 globalThis.WebSocket = WebSocket;
 
-// Configure for Midnight Testnet
-setNetworkId(NetworkId.TestNet);
+// Initialize network from environment config
+const networkConfig = EnvironmentManager.initializeNetwork();
 
 const waitForFunds = (wallet: Wallet) =>
   Rx.firstValueFrom(
@@ -58,7 +56,6 @@ async function main() {
     // Validate environment
     EnvironmentManager.validateEnvironment();
 
-    const networkConfig = EnvironmentManager.getNetworkConfig();
     const contractName = process.env.CONTRACT_NAME || "hello-world";
 
     // Check if contract is compiled
@@ -99,7 +96,7 @@ async function main() {
       console.log(chalk.magenta.bold("📝 How to Get Test Tokens:"));
       console.log(chalk.magenta.bold("━".repeat(60)));
       console.log();
-      console.log(chalk.white("   1. ") + chalk.cyan("Visit: ") + chalk.underline("https://midnight.network/test-faucet"));
+      console.log(chalk.white("   1. ") + chalk.cyan("Visit: ") + chalk.underline(networkConfig.faucetUrl));
       console.log(chalk.white("   2. ") + chalk.cyan("Paste your wallet address (shown above)"));
       console.log(chalk.white("   3. ") + chalk.cyan("Request tokens from the faucet"));
       console.log();

@@ -18,7 +18,7 @@
     "reset": "rm -rf contracts/managed deployment.json dist && npm run compile",
     "validate": "tsc --noEmit && npm run compile",
     "clean": "rm -rf dist contracts/managed deployment.json",
-    "proof-server": "docker run -p 6300:6300 midnightnetwork/proof-server -- 'midnight-proof-server --network testnet'",
+    "proof-server": "docker run -p 6300:6300 midnightntwrk/proof-server -- 'midnight-proof-server -v'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

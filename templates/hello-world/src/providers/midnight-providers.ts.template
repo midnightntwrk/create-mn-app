@@ -4,12 +4,16 @@ import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-p
 import { NodeZkConfigProvider } from "@midnight-ntwrk/midnight-js-node-zk-config-provider";
 import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
 
+import { NetworkId } from "@midnight-ntwrk/midnight-js-network-id";
+
 export interface NetworkConfig {
   indexer: string;
   indexerWS: string;
   node: string;
   proofServer: string;
   name: string;
+  faucetUrl: string;
+  networkId: NetworkId;
 }
 
 export interface ProviderConfig {

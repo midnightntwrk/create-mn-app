@@ -3,8 +3,6 @@ import * as readline from "readline/promises";
 import { WalletBuilder } from "@midnight-ntwrk/wallet";
 import { findDeployedContract } from "@midnight-ntwrk/midnight-js-contracts";
 import {
-  NetworkId,
-  setNetworkId,
   getZswapNetworkId,
   getLedgerNetworkId,
 } from "@midnight-ntwrk/midnight-js-network-id";
@@ -22,8 +20,8 @@ import { EnvironmentManager } from "./utils/environment.js";
 // @ts-ignore
 globalThis.WebSocket = WebSocket;
 
-// Configure for Midnight Testnet
-setNetworkId(NetworkId.TestNet);
+// Initialize network from environment config
+const networkConfig = EnvironmentManager.initializeNetwork();
 
 async function main() {
   const rl = readline.createInterface({
@@ -46,7 +44,6 @@ async function main() {
     const deployment = JSON.parse(fs.readFileSync("deployment.json", "utf-8"));
     console.log(`Contract: ${deployment.contractAddress}\n`);
 
-    const networkConfig = EnvironmentManager.getNetworkConfig();
     const contractName =
       deployment.contractName || process.env.CONTRACT_NAME || "hello-world";
     const walletSeed = process.env.WALLET_SEED!;

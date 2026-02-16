@@ -1,11 +1,6 @@
 import "dotenv/config";
 import { WalletBuilder } from "@midnight-ntwrk/wallet";
-import {
-  NetworkId,
-  setNetworkId,
-  getZswapNetworkId,
-  getLedgerNetworkId,
-} from "@midnight-ntwrk/midnight-js-network-id";
+import { getZswapNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
 import { nativeToken } from "@midnight-ntwrk/ledger";
 import { WebSocket } from "ws";
 import * as Rx from "rxjs";
@@ -16,8 +11,8 @@ import { EnvironmentManager } from "./utils/environment.js";
 // @ts-ignore
 globalThis.WebSocket = WebSocket;
 
-// Configure for Midnight Testnet
-setNetworkId(NetworkId.TestNet);
+// Initialize network from environment config
+const networkConfig = EnvironmentManager.initializeNetwork();
 
 async function checkBalance() {
   try {
@@ -27,16 +22,12 @@ async function checkBalance() {
     console.log(chalk.blue.bold("━".repeat(60)));
     console.log();
 
-    const seed = process.env.WALLET_SEED;
-    if (!seed) {
-      throw new Error("WALLET_SEED not found in .env file");
-    }
+    // Validate environment (checks WALLET_SEED)
+    EnvironmentManager.validateEnvironment();
+    const seed = process.env.WALLET_SEED!;
 
     console.log(chalk.gray("Building wallet..."));
     console.log();
-
-    // Get network configuration
-    const networkConfig = EnvironmentManager.getNetworkConfig();
 
     // Build wallet from seed
     const wallet = await WalletBuilder.buildFromSeed(
@@ -68,7 +59,7 @@ async function checkBalance() {
       console.log(chalk.magenta.bold("📝 How to Get Test Tokens:"));
       console.log(chalk.magenta.bold("━".repeat(60)));
       console.log();
-      console.log(chalk.white("   1. ") + chalk.cyan("Visit: ") + chalk.underline("https://midnight.network/test-faucet"));
+      console.log(chalk.white("   1. ") + chalk.cyan("Visit: ") + chalk.underline(networkConfig.faucetUrl));
       console.log(chalk.white("   2. ") + chalk.cyan("Paste your wallet address (shown above)"));
       console.log(chalk.white("   3. ") + chalk.cyan("Request tokens from the faucet"));
       console.log(chalk.white("   4. ") + chalk.cyan("Wait 2-5 minutes for processing"));

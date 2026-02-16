@@ -26,7 +26,7 @@ A Midnight Network application created with `create-mn-app`.
 
    - Compile your Compact contract
    - Build TypeScript to JavaScript
-   - Deploy contract to the testnet
+   - Deploy contract to Preprod
 
 3. **Interact with your contract**:
    ```bash
@@ -38,7 +38,7 @@ A Midnight Network application created with `create-mn-app`.
 - `npm run setup` - Compile, build, and deploy contract
 - `npm run compile` - Compile Compact contract
 - `npm run build` - Build TypeScript
-- `npm run deploy` - Deploy contract to testnet
+- `npm run deploy` - Deploy contract to Preprod
 - `npm run cli` - Interactive CLI for contract
 - `npm run check-balance` - Check wallet balance
 - `npm run reset` - Reset all compiled/built files
@@ -49,7 +49,7 @@ A Midnight Network application created with `create-mn-app`.
 Copy `.env.example` to `.env` and configure:
 
 - `WALLET_SEED` - Your 64-character wallet seed (auto-generated)
-- `MIDNIGHT_NETWORK` - Network to use (testnet)
+- `MIDNIGHT_NETWORK` - Network to use (preprod)
 - `PROOF_SERVER_URL` - Proof server URL
 - `CONTRACT_NAME` - Contract name
 
@@ -70,11 +70,11 @@ Copy `.env.example` to `.env` and configure:
 └── package.json
 ```
 
-### Getting Testnet Tokens
+### Getting Preprod Tokens
 
 1. Run `npm run deploy` to see your wallet address
-2. Visit [https://midnight.network/test-faucet](https://midnight.network/test-faucet)
-3. Enter your address to receive test tokens
+2. Visit [https://faucet.preprod.midnight.network/](https://faucet.preprod.midnight.network/)
+3. Enter your address to receive test tokens (tNight)
 
 ### Learn More
 

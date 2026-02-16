@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-02-16
+
+### Changed
+
+- **Default network changed from testnet to Preprod**
+  - All network endpoints updated to `preprod.midnight.network`
+  - Indexer API upgraded from v1 to v3 (`/api/v3/graphql`)
+  - Faucet URL updated to `https://faucet.preprod.midnight.network/`
+- **Proof server command simplified**
+  - Removed `--network testnet` flag, now uses `-v` only
+  - Docker image updated to `midnightntwrk/proof-server`
+- **DRY refactoring of hello-world template**
+  - Centralized network configuration in `EnvironmentManager.initializeNetwork()`
+  - Added `faucetUrl` and `networkId` to `NetworkConfig` interface
+  - Added warning for invalid/unknown network values
+  - Removed redundant `setNetworkId()` calls across files
+  - Cleaned up unused imports
+
+### Fixed
+
+- Network validation now warns instead of silently falling back
+
 ## [0.3.5] - 2025-10-31
 
 ### Added

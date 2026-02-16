@@ -31,7 +31,7 @@ export class SetupGuide {
   static getInstructions(
     templateName: string,
     projectName: string,
-    packageManager: PackageManager
+    packageManager: PackageManager,
   ): void {
     const template = getTemplate(templateName);
     if (!template || template.type !== "remote") return;
@@ -49,16 +49,16 @@ export class SetupGuide {
    */
   private static displayCounterInstructions(
     projectName: string,
-    pm: PackageManager
+    pm: PackageManager,
   ): void {
     const installCmd =
       pm === "npm"
         ? "npm install"
         : pm === "yarn"
-        ? "yarn"
-        : pm === "pnpm"
-        ? "pnpm install"
-        : "bun install";
+          ? "yarn"
+          : pm === "pnpm"
+            ? "pnpm install"
+            : "bun install";
     const runCmd = pm === "npm" ? "npm run" : pm;
 
     console.log(chalk.gray("    project structure:"));
@@ -69,14 +69,14 @@ export class SetupGuide {
     console.log(chalk.gray("    $ ") + chalk.cyan(`cd ${projectName}`));
     console.log(chalk.gray("    $ ") + chalk.cyan(installCmd));
     console.log(
-      chalk.gray("    $ ") + chalk.cyan(`cd contract && ${runCmd} compact`)
+      chalk.gray("    $ ") + chalk.cyan(`cd contract && ${runCmd} compact`),
     );
     console.log(
-      chalk.gray("      (downloads ~500MB zk parameters on first run)")
+      chalk.gray("      (downloads ~500MB zk parameters on first run)"),
     );
     console.log(chalk.gray("    $ ") + chalk.cyan(`${runCmd} build`));
     console.log(
-      chalk.gray("    $ ") + chalk.cyan(`cd ../counter-cli && ${runCmd} build`)
+      chalk.gray("    $ ") + chalk.cyan(`cd ../counter-cli && ${runCmd} build`),
     );
     console.log();
 
@@ -84,23 +84,24 @@ export class SetupGuide {
     console.log(
       chalk.gray("    $ ") +
         chalk.cyan(
-          "docker run -p 6300:6300 midnightnetwork/proof-server -- 'midnight-proof-server --network testnet'"
-        )
+          "docker run -p 6300:6300 midnightntwrk/proof-server -- 'midnight-proof-server -v'",
+        ),
     );
     console.log(chalk.gray("      keep this terminal running"));
     console.log();
 
     console.log(chalk.bold("[" + chalk.green("▶") + "] Run Application\n"));
     console.log(
-      chalk.gray("    $ ") +
-        chalk.cyan(`cd counter-cli && ${runCmd} start-testnet-remote`)
+      chalk.gray("    $ ") + chalk.cyan(`cd counter-cli && ${runCmd} start`),
     );
     console.log();
 
     console.log(chalk.bold("[" + chalk.yellow("!") + "] Important\n"));
     console.log(chalk.gray("    • create wallet and fund from faucet"));
     console.log(
-      chalk.gray("    • testnet faucet: https://midnight.network/test-faucet")
+      chalk.gray(
+        "    • Preprod faucet: https://faucet.preprod.midnight.network/",
+      ),
     );
     console.log(chalk.gray("    • funding takes 2-3 minutes"));
     console.log(chalk.gray("    • see README.md for detailed guide"));
