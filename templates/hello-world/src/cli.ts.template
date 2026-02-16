@@ -1,188 +1,268 @@
-import "dotenv/config";
-import * as readline from "readline/promises";
-import { WalletBuilder } from "@midnight-ntwrk/wallet";
-import { findDeployedContract } from "@midnight-ntwrk/midnight-js-contracts";
-import {
-  getZswapNetworkId,
-  getLedgerNetworkId,
-} from "@midnight-ntwrk/midnight-js-network-id";
-import { createBalancedTx } from "@midnight-ntwrk/midnight-js-types";
-import { Transaction } from "@midnight-ntwrk/ledger";
-import { Transaction as ZswapTransaction } from "@midnight-ntwrk/zswap";
-import { WebSocket } from "ws";
-import * as path from "path";
-import * as fs from "fs";
-import * as Rx from "rxjs";
-import { MidnightProviders } from "./providers/midnight-providers.js";
-import { EnvironmentManager } from "./utils/environment.js";
+/**
+ * CLI for interacting with {{projectName}} contract
+ */
+import { createInterface } from 'node:readline/promises';
+import { stdin, stdout } from 'node:process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { WebSocket } from 'ws';
+import * as Rx from 'rxjs';
+import { Buffer } from 'buffer';
 
-// Fix WebSocket for Node.js environment
-// @ts-ignore
+// Midnight SDK imports
+import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import * as ledger from '@midnight-ntwrk/ledger-v7';
+import { unshieldedToken } from '@midnight-ntwrk/ledger-v7';
+import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
+import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
+import { createKeystore, InMemoryTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { CompiledContract } from '@midnight-ntwrk/compact-js';
+
+// Enable WebSocket for GraphQL subscriptions
+// @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-// Initialize network from environment config
-const networkConfig = EnvironmentManager.initializeNetwork();
+// Set network to preprod
+setNetworkId('preprod');
+
+// Preprod network configuration
+const CONFIG = {
+  indexer: 'https://indexer.preprod.midnight.network/api/v3/graphql',
+  indexerWS: 'wss://indexer.preprod.midnight.network/api/v3/graphql/ws',
+  node: 'https://rpc.preprod.midnight.network',
+  proofServer: 'http://127.0.0.1:6300',
+};
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
+
+// Load compiled contract
+const contractPath = path.join(zkConfigPath, 'contract', 'index.js');
+
+// Check if contract is compiled
+if (!fs.existsSync(contractPath)) {
+  console.error('\n❌ Contract not compiled! Run: npm run compile\n');
+  process.exit(1);
+}
+
+const HelloWorld = await import(pathToFileURL(contractPath).href);
+
+const compiledContract = CompiledContract.make('hello-world', HelloWorld.Contract).pipe(
+  CompiledContract.withVacantWitnesses,
+  CompiledContract.withCompiledFileAssets(zkConfigPath),
+);
+
+// ─── Wallet Functions ──────────────────────────────────────────────────────────
+
+function deriveKeys(seed: string) {
+  const hdWallet = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
+  if (hdWallet.type !== 'seedOk') throw new Error('Invalid seed');
+  const result = hdWallet.hdWallet.selectAccount(0).selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust]).deriveKeysAt(0);
+  if (result.type !== 'keysDerived') throw new Error('Key derivation failed');
+  hdWallet.hdWallet.clear();
+  return result.keys;
+}
+
+async function createWallet(seed: string) {
+  const keys = deriveKeys(seed);
+  const networkId = getNetworkId();
+  const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
+  const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
+  const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], networkId);
+
+  const walletConfig = {
+    networkId,
+    indexerClientConnection: { indexerHttpUrl: CONFIG.indexer, indexerWsUrl: CONFIG.indexerWS },
+    provingServerUrl: new URL(CONFIG.proofServer),
+    relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
+  };
+
+  const shieldedWallet = ShieldedWallet(walletConfig).startWithSecretKeys(shieldedSecretKeys);
+  const unshieldedWallet = UnshieldedWallet({
+    networkId,
+    indexerClientConnection: walletConfig.indexerClientConnection,
+    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+  }).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore));
+  const dustWallet = DustWallet({
+    ...walletConfig,
+    costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
+  }).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust);
+
+  const wallet = new WalletFacade(shieldedWallet, unshieldedWallet, dustWallet);
+  await wallet.start(shieldedSecretKeys, dustSecretKey);
+
+  return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
+}
+
+// Workaround for wallet SDK signRecipe bug
+function signTransactionIntents(tx: { intents?: Map<number, any> }, signFn: (payload: Uint8Array) => ledger.Signature, proofMarker: 'proof' | 'pre-proof'): void {
+  if (!tx.intents || tx.intents.size === 0) return;
+  for (const segment of tx.intents.keys()) {
+    const intent = tx.intents.get(segment);
+    if (!intent) continue;
+    const cloned = ledger.Intent.deserialize<ledger.SignatureEnabled, ledger.Proofish, ledger.PreBinding>('signature', proofMarker, 'pre-binding', intent.serialize());
+    const sigData = cloned.signatureData(segment);
+    const signature = signFn(sigData);
+    if (cloned.fallibleUnshieldedOffer) {
+      const sigs = cloned.fallibleUnshieldedOffer.inputs.map((_: any, i: number) => cloned.fallibleUnshieldedOffer!.signatures.at(i) ?? signature);
+      cloned.fallibleUnshieldedOffer = cloned.fallibleUnshieldedOffer.addSignatures(sigs);
+    }
+    if (cloned.guaranteedUnshieldedOffer) {
+      const sigs = cloned.guaranteedUnshieldedOffer.inputs.map((_: any, i: number) => cloned.guaranteedUnshieldedOffer!.signatures.at(i) ?? signature);
+      cloned.guaranteedUnshieldedOffer = cloned.guaranteedUnshieldedOffer.addSignatures(sigs);
+    }
+    tx.intents.set(segment, cloned);
+  }
+}
+
+async function createProviders(walletCtx: ReturnType<typeof createWallet> extends Promise<infer T> ? T : never) {
+  const state = await Rx.firstValueFrom(walletCtx.wallet.state().pipe(Rx.filter((s) => s.isSynced)));
+
+  const walletProvider = {
+    getCoinPublicKey: () => state.shielded.coinPublicKey.toHexString(),
+    getEncryptionPublicKey: () => state.shielded.encryptionPublicKey.toHexString(),
+    async balanceTx(tx: any, ttl?: Date) {
+      const recipe = await walletCtx.wallet.balanceUnboundTransaction(
+        tx,
+        { shieldedSecretKeys: walletCtx.shieldedSecretKeys, dustSecretKey: walletCtx.dustSecretKey },
+        { ttl: ttl ?? new Date(Date.now() + 30 * 60 * 1000) },
+      );
+      const signFn = (payload: Uint8Array) => walletCtx.unshieldedKeystore.signData(payload);
+      signTransactionIntents(recipe.baseTransaction, signFn, 'proof');
+      if (recipe.balancingTransaction) signTransactionIntents(recipe.balancingTransaction, signFn, 'pre-proof');
+      return walletCtx.wallet.finalizeRecipe(recipe);
+    },
+    submitTx: (tx: any) => walletCtx.wallet.submitTransaction(tx) as any,
+  };
+
+  const zkConfigProvider = new NodeZkConfigProvider(zkConfigPath);
+
+  return {
+    privateStateProvider: levelPrivateStateProvider({ privateStateStoreName: 'hello-world-state', walletProvider }),
+    publicDataProvider: indexerPublicDataProvider(CONFIG.indexer, CONFIG.indexerWS),
+    zkConfigProvider,
+    proofProvider: httpClientProofProvider(CONFIG.proofServer, zkConfigProvider),
+    walletProvider,
+    midnightProvider: walletProvider,
+  };
+}
+
+// ─── Main CLI ──────────────────────────────────────────────────────────────────
 
 async function main() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+  console.log('\n╔══════════════════════════════════════════════════════════════╗');
+  console.log('║                   {{projectName}} CLI                           ║');
+  console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
-  console.log("🌙 {{projectName}} CLI\n");
+  const rl = createInterface({ input: stdin, output: stdout });
+
+  // Check for deployment
+  if (!fs.existsSync('deployment.json')) {
+    console.error('❌ No deployment.json found! Run: npm run deploy\n');
+    process.exit(1);
+  }
+
+  const deployment = JSON.parse(fs.readFileSync('deployment.json', 'utf-8'));
+  console.log(`  Contract: ${deployment.contractAddress}`);
+  console.log(`  Network: ${deployment.network || 'preprod'}\n`);
 
   try {
-    // Validate environment
-    EnvironmentManager.validateEnvironment();
+    // Create wallet from saved seed
+    console.log('  Connecting to wallet...');
+    const walletCtx = await createWallet(deployment.seed);
 
-    // Check for deployment file
-    if (!fs.existsSync("deployment.json")) {
-      console.error("❌ No deployment.json found! Run npm run deploy first.");
-      process.exit(1);
-    }
+    console.log('  Syncing with network...');
+    const state = await Rx.firstValueFrom(walletCtx.wallet.state().pipe(Rx.throttleTime(5000), Rx.filter((s) => s.isSynced)));
+    const balance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
+    console.log(`  Balance: ${balance.toLocaleString()} tNight\n`);
 
-    const deployment = JSON.parse(fs.readFileSync("deployment.json", "utf-8"));
-    console.log(`Contract: ${deployment.contractAddress}\n`);
+    // Setup providers and connect to contract
+    console.log('  Connecting to contract...');
+    const providers = await createProviders(walletCtx);
 
-    const contractName =
-      deployment.contractName || process.env.CONTRACT_NAME || "hello-world";
-    const walletSeed = process.env.WALLET_SEED!;
-
-    console.log("Connecting to Midnight network...");
-
-    // Build wallet
-    const wallet = await WalletBuilder.buildFromSeed(
-      networkConfig.indexer,
-      networkConfig.indexerWS,
-      networkConfig.proofServer,
-      networkConfig.node,
-      walletSeed,
-      getZswapNetworkId(),
-      "info"
-    );
-
-    wallet.start();
-
-    // Wait for sync
-    await Rx.firstValueFrom(
-      wallet.state().pipe(Rx.filter((s) => s.syncProgress?.synced === true))
-    );
-
-    // Load contract
-    const contractPath = path.join(process.cwd(), "contracts");
-    const contractModulePath = path.join(
-      contractPath,
-      "managed",
-      contractName,
-      "contract",
-      "index.cjs"
-    );
-    const HelloWorldModule = await import(contractModulePath);
-    const contractInstance = new HelloWorldModule.Contract({});
-
-    // Create wallet provider
-    const walletState = await Rx.firstValueFrom(wallet.state());
-
-    const walletProvider = {
-      coinPublicKey: walletState.coinPublicKey,
-      encryptionPublicKey: walletState.encryptionPublicKey,
-      balanceTx(tx: any, newCoins: any) {
-        return wallet
-          .balanceTransaction(
-            ZswapTransaction.deserialize(
-              tx.serialize(getLedgerNetworkId()),
-              getZswapNetworkId()
-            ),
-            newCoins
-          )
-          .then((tx) => wallet.proveTransaction(tx))
-          .then((zswapTx) =>
-            Transaction.deserialize(
-              zswapTx.serialize(getZswapNetworkId()),
-              getLedgerNetworkId()
-            )
-          )
-          .then(createBalancedTx);
-      },
-      submitTx(tx: any) {
-        return wallet.submitTransaction(tx);
-      },
-    };
-
-    // Configure providers
-    const providers = MidnightProviders.create({
-      contractName,
-      walletProvider,
-      networkConfig,
-    });
-
-    // Connect to contract
     const deployed: any = await findDeployedContract(providers, {
+      compiledContract,
       contractAddress: deployment.contractAddress,
-      contract: contractInstance,
-      privateStateId: "helloWorldState",
+      privateStateId: 'helloWorldState',
       initialPrivateState: {},
     });
 
-    console.log("✅ Connected to contract\n");
+    console.log('  ✅ Connected!\n');
 
-    // Main menu loop
+    // Interactive CLI loop
     let running = true;
     while (running) {
-      console.log("--- Menu ---");
-      console.log("1. Store message");
-      console.log("2. Read current message");
-      console.log("3. Exit");
+      console.log('─── Menu ───────────────────────────────────────────────────────');
+      console.log('  1. Store a message');
+      console.log('  2. Read current message');
+      console.log('  3. Check wallet balance');
+      console.log('  4. Exit\n');
 
-      const choice = await rl.question("\nYour choice: ");
+      const choice = await rl.question('  Your choice: ');
 
-      switch (choice) {
-        case "1":
-          console.log("\nStoring custom message...");
-          const customMessage = await rl.question("Enter your message: ");
+      switch (choice.trim()) {
+        case '1': {
+          const message = await rl.question('  Enter your message: ');
+          console.log('\n  Submitting transaction (this may take 30-60 seconds)...');
           try {
-            const tx = await deployed.callTx.storeMessage(customMessage);
-            console.log("✅ Success!");
-            console.log(`Message: "${customMessage}"`);
-            console.log(`Transaction ID: ${tx.public.txId}`);
-            console.log(`Block height: ${tx.public.blockHeight}\n`);
+            const tx = await deployed.callTx.storeMessage(message);
+            console.log(`\n  ✅ Message stored: "${message}"`);
+            console.log(`  Transaction ID: ${tx.public.txId}`);
+            console.log(`  Block height: ${tx.public.blockHeight}\n`);
           } catch (error) {
-            console.error("❌ Failed to store message:", error);
+            console.error('\n  ❌ Failed:', error instanceof Error ? error.message : error);
           }
           break;
+        }
 
-        case "2":
-          console.log("\nReading message from blockchain...");
+        case '2': {
+          console.log('\n  Reading message from blockchain...');
           try {
-            const state = await providers.publicDataProvider.queryContractState(
-              deployment.contractAddress
-            );
-            if (state) {
-              const ledger = HelloWorldModule.ledger(state.data);
-              const message = Buffer.from(ledger.message).toString();
-              console.log(`📋 Current message: "${message}"\n`);
+            const contractState = await providers.publicDataProvider.queryContractState(deployment.contractAddress);
+            if (contractState) {
+              const ledgerState = HelloWorld.ledger(contractState.data);
+              const message = Buffer.from(ledgerState.message).toString();
+              console.log(`\n  📋 Current message: "${message}"\n`);
             } else {
-              console.log("📋 No message found\n");
+              console.log('\n  📋 No message found (contract state empty)\n');
             }
           } catch (error) {
-            console.error("❌ Failed to read message:", error);
+            console.error('\n  ❌ Failed:', error instanceof Error ? error.message : error);
           }
           break;
+        }
 
-        case "3":
+        case '3': {
+          console.log('\n  Checking balance...');
+          const currentState = await Rx.firstValueFrom(walletCtx.wallet.state().pipe(Rx.filter((s) => s.isSynced)));
+          const currentBalance = currentState.unshielded.balances[unshieldedToken().raw] ?? 0n;
+          const dustBalance = currentState.dust.walletBalance(new Date());
+          console.log(`\n  tNight: ${currentBalance.toLocaleString()}`);
+          console.log(`  DUST: ${dustBalance.toLocaleString()}\n`);
+          break;
+        }
+
+        case '4':
           running = false;
-          console.log("\n👋 Goodbye!");
+          console.log('\n  👋 Goodbye!\n');
           break;
 
         default:
-          console.log("❌ Invalid choice. Please enter 1, 2, or 3.\n");
+          console.log('\n  ❌ Invalid choice. Please enter 1-4.\n');
       }
     }
 
-    // Clean up
-    await wallet.close();
+    await walletCtx.wallet.stop();
   } catch (error) {
-    console.error("\n❌ Error:", error);
+    console.error('\n❌ Error:', error instanceof Error ? error.message : error);
   } finally {
     rl.close();
   }

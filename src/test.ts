@@ -42,15 +42,13 @@ async function testCreateApp() {
     const requiredFiles = [
       "package.json",
       "tsconfig.json",
-      ".env",
-      ".env.example",
       ".gitignore",
       "README.md",
+      "docker-compose.yml",
       "contracts/hello-world.compact",
       "src/deploy.ts",
       "src/cli.ts",
-      "src/providers/midnight-providers.ts",
-      "src/utils/environment.ts",
+      "src/check-balance.ts",
     ];
 
     for (const file of requiredFiles) {

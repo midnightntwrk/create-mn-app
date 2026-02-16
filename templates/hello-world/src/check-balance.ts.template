@@ -1,98 +1,135 @@
-import "dotenv/config";
-import { WalletBuilder } from "@midnight-ntwrk/wallet";
-import { getZswapNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
-import { nativeToken } from "@midnight-ntwrk/ledger";
-import { WebSocket } from "ws";
-import * as Rx from "rxjs";
-import chalk from "chalk";
-import { EnvironmentManager } from "./utils/environment.js";
+/**
+ * Check wallet balance on Midnight Preprod network
+ */
+import * as fs from 'node:fs';
+import { WebSocket } from 'ws';
+import * as Rx from 'rxjs';
+import { Buffer } from 'buffer';
 
-// Fix WebSocket for Node.js environment
-// @ts-ignore
+// Midnight SDK imports
+import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import * as ledger from '@midnight-ntwrk/ledger-v7';
+import { unshieldedToken } from '@midnight-ntwrk/ledger-v7';
+import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
+import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
+import { createKeystore, InMemoryTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+
+// Enable WebSocket for GraphQL subscriptions
+// @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-// Initialize network from environment config
-const networkConfig = EnvironmentManager.initializeNetwork();
+// Set network to preprod
+setNetworkId('preprod');
 
-async function checkBalance() {
+// Preprod network configuration
+const CONFIG = {
+  indexer: 'https://indexer.preprod.midnight.network/api/v3/graphql',
+  indexerWS: 'wss://indexer.preprod.midnight.network/api/v3/graphql/ws',
+  node: 'https://rpc.preprod.midnight.network',
+  proofServer: 'http://127.0.0.1:6300',
+  faucetUrl: 'https://faucet.preprod.midnight.network/',
+};
+
+// ─── Wallet Functions ──────────────────────────────────────────────────────────
+
+function deriveKeys(seed: string) {
+  const hdWallet = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
+  if (hdWallet.type !== 'seedOk') throw new Error('Invalid seed');
+  const result = hdWallet.hdWallet.selectAccount(0).selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust]).deriveKeysAt(0);
+  if (result.type !== 'keysDerived') throw new Error('Key derivation failed');
+  hdWallet.hdWallet.clear();
+  return result.keys;
+}
+
+async function createWallet(seed: string) {
+  const keys = deriveKeys(seed);
+  const networkId = getNetworkId();
+  const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
+  const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
+  const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], networkId);
+
+  const walletConfig = {
+    networkId,
+    indexerClientConnection: { indexerHttpUrl: CONFIG.indexer, indexerWsUrl: CONFIG.indexerWS },
+    provingServerUrl: new URL(CONFIG.proofServer),
+    relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
+  };
+
+  const shieldedWallet = ShieldedWallet(walletConfig).startWithSecretKeys(shieldedSecretKeys);
+  const unshieldedWallet = UnshieldedWallet({
+    networkId,
+    indexerClientConnection: walletConfig.indexerClientConnection,
+    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+  }).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore));
+  const dustWallet = DustWallet({
+    ...walletConfig,
+    costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
+  }).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust);
+
+  const wallet = new WalletFacade(shieldedWallet, unshieldedWallet, dustWallet);
+  await wallet.start(shieldedSecretKeys, dustSecretKey);
+
+  return { wallet, unshieldedKeystore };
+}
+
+// ─── Main ──────────────────────────────────────────────────────────────────────
+
+async function main() {
+  console.log('\n╔══════════════════════════════════════════════════════════════╗');
+  console.log('║                   Wallet Balance Checker                      ║');
+  console.log('╚══════════════════════════════════════════════════════════════╝\n');
+
+  // Check for deployment.json to get seed
+  if (!fs.existsSync('deployment.json')) {
+    console.error('❌ No deployment.json found! Run: npm run deploy\n');
+    process.exit(1);
+  }
+
+  const deployment = JSON.parse(fs.readFileSync('deployment.json', 'utf-8'));
+
+  if (!deployment.seed) {
+    console.error('❌ No wallet seed in deployment.json\n');
+    process.exit(1);
+  }
+
   try {
-    console.log();
-    console.log(chalk.blue.bold("━".repeat(60)));
-    console.log(chalk.blue.bold("🌙  Wallet Balance Checker"));
-    console.log(chalk.blue.bold("━".repeat(60)));
-    console.log();
+    console.log('  Building wallet...');
+    const { wallet, unshieldedKeystore } = await createWallet(deployment.seed);
 
-    // Validate environment (checks WALLET_SEED)
-    EnvironmentManager.validateEnvironment();
-    const seed = process.env.WALLET_SEED!;
-
-    console.log(chalk.gray("Building wallet..."));
-    console.log();
-
-    // Build wallet from seed
-    const wallet = await WalletBuilder.buildFromSeed(
-      networkConfig.indexer,
-      networkConfig.indexerWS,
-      networkConfig.proofServer,
-      networkConfig.node,
-      seed,
-      getZswapNetworkId(),
-      "info"
+    console.log('  Syncing with network...');
+    const state = await Rx.firstValueFrom(
+      wallet.state().pipe(Rx.throttleTime(5000), Rx.filter((s) => s.isSynced)),
     );
 
-    wallet.start();
+    const address = unshieldedKeystore.getBech32Address();
+    const tNightBalance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
+    const dustBalance = state.dust.walletBalance(new Date());
 
-    const state = await Rx.firstValueFrom(wallet.state());
+    console.log('\n─── Wallet Details ─────────────────────────────────────────────\n');
+    console.log(`  Address: ${address}`);
+    console.log(`  Network: preprod\n`);
 
-    console.log(chalk.cyan.bold("📍 Wallet Address:"));
-    console.log(chalk.white(`   ${state.address}`));
-    console.log();
+    console.log('─── Balances ───────────────────────────────────────────────────\n');
+    console.log(`  tNight: ${tNightBalance.toLocaleString()}`);
+    console.log(`  DUST:   ${dustBalance.toLocaleString()}\n`);
 
-    const balance = state.balances[nativeToken()] || 0n;
-
-    if (balance === 0n) {
-      console.log(chalk.yellow.bold("💰 Balance: ") + chalk.red.bold("0 DUST"));
-      console.log();
-      console.log(chalk.red("❌ No funds detected."));
-      console.log();
-      console.log(chalk.magenta.bold("━".repeat(60)));
-      console.log(chalk.magenta.bold("📝 How to Get Test Tokens:"));
-      console.log(chalk.magenta.bold("━".repeat(60)));
-      console.log();
-      console.log(chalk.white("   1. ") + chalk.cyan("Visit: ") + chalk.underline(networkConfig.faucetUrl));
-      console.log(chalk.white("   2. ") + chalk.cyan("Paste your wallet address (shown above)"));
-      console.log(chalk.white("   3. ") + chalk.cyan("Request tokens from the faucet"));
-      console.log(chalk.white("   4. ") + chalk.cyan("Wait 2-5 minutes for processing"));
-      console.log(chalk.white("   5. ") + chalk.cyan("Run ") + chalk.yellow.bold("'npm run check-balance'") + chalk.cyan(" again"));
-      console.log();
-      console.log(chalk.gray("━".repeat(60)));
-      console.log(chalk.gray("💡 Tip: Faucet transactions typically take 2-5 minutes to process."));
-      console.log(chalk.gray("━".repeat(60)));
+    if (tNightBalance === 0n) {
+      console.log('─── Need Funds? ────────────────────────────────────────────────\n');
+      console.log(`  1. Visit: ${CONFIG.faucetUrl}`);
+      console.log(`  2. Paste your address: ${address}`);
+      console.log(`  3. Request tokens and wait ~2-5 minutes`);
+      console.log(`  4. Run this command again to check balance\n`);
     } else {
-      console.log(chalk.yellow.bold("💰 Balance: ") + chalk.green.bold(`${balance} DUST`));
-      console.log();
-      console.log(chalk.green.bold("✅ Wallet is funded and ready!"));
-      console.log();
-      console.log(chalk.magenta.bold("━".repeat(60)));
-      console.log(chalk.magenta.bold("🚀 Next Step:"));
-      console.log(chalk.magenta.bold("━".repeat(60)));
-      console.log();
-      console.log(chalk.cyan("   Deploy your contract with:"));
-      console.log(chalk.yellow.bold("   npm run deploy"));
-      console.log();
-      console.log(chalk.gray("━".repeat(60)));
+      console.log('  ✅ Wallet is funded and ready!\n');
     }
 
-    console.log();
-    wallet.close();
-    process.exit(0);
+    await wallet.stop();
   } catch (error) {
-    console.log();
-    console.log(chalk.red.bold("❌ Error checking balance:"));
-    console.error(chalk.red(error instanceof Error ? error.message : String(error)));
-    console.log();
+    console.error('\n❌ Error:', error instanceof Error ? error.message : error);
     process.exit(1);
   }
 }
 
-checkBalance();
+main();

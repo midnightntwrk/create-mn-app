@@ -22,7 +22,6 @@ import { distance } from "fastest-levenshtein";
 import { validateProjectName } from "./utils/validation.js";
 import { PackageInstaller } from "./installers/package-installer.js";
 import { TemplateManager } from "./utils/template-manager.js";
-import { WalletGenerator } from "./installers/wallet-generator.js";
 import { ProofServerSetup } from "./installers/proof-server-setup.js";
 import { GitUtils } from "./utils/git-utils.js";
 import { GitCloner } from "./utils/git-cloner.js";
@@ -77,7 +76,7 @@ function findSimilarTemplate(input: string): string | null {
 
 export async function createApp(
   projectDirectory: string | undefined,
-  options: CreateAppOptions
+  options: CreateAppOptions,
 ): Promise<void> {
   // Enable debug mode if verbose flag is set
   if (options.verbose) {
@@ -145,7 +144,7 @@ export async function createApp(
     const template = getTemplate(selectedTemplate);
     if (template && template.comingSoon) {
       console.error(
-        chalk.red(`\n✖ Template "${selectedTemplate}" is coming soon!`)
+        chalk.red(`\n✖ Template "${selectedTemplate}" is coming soon!`),
       );
       console.log(chalk.yellow("\n📢 Available templates:"));
       getAllTemplates()
@@ -160,7 +159,7 @@ export async function createApp(
       const suggestion = findSimilarTemplate(selectedTemplate);
       if (suggestion) {
         console.log(
-          chalk.yellow(`\n💡 Did you mean "${chalk.cyan(suggestion)}"?`)
+          chalk.yellow(`\n💡 Did you mean "${chalk.cyan(suggestion)}"?`),
         );
       }
 
@@ -192,7 +191,7 @@ export async function createApp(
     debug("Auto-detected package manager:", packageManager);
     console.log(
       chalk.bold("[" + chalk.blue("i") + "] ") +
-        chalk.gray(`package manager: ${chalk.cyan(packageManager)}\n`)
+        chalk.gray(`package manager: ${chalk.cyan(packageManager)}\n`),
     );
   }
 
@@ -203,7 +202,7 @@ export async function createApp(
   debug("Project name validation:", validation);
   if (!validation.valid) {
     console.error(
-      chalk.red(`✖ Invalid project name: ${validation.problems![0]}`)
+      chalk.red(`✖ Invalid project name: ${validation.problems![0]}`),
     );
     process.exit(1);
   }
@@ -218,7 +217,7 @@ export async function createApp(
       type: "confirm",
       name: "overwrite",
       message: `Directory ${chalk.cyan(
-        projectName
+        projectName,
       )} already exists. Overwrite?`,
       initial: false,
     });
@@ -241,7 +240,7 @@ export async function createApp(
     projectName!,
     selectedTemplate,
     packageManager,
-    options
+    options,
   );
 
   // Success message - only show for bundled templates
@@ -271,7 +270,7 @@ function displayBundledSuccessMessage(projectName: string, pmInfo: any): void {
   console.log(chalk.white.bold("📚 Available Commands:"));
   console.log();
   console.log(`  ${chalk.cyan(`${pmInfo.runCommand} setup`)}`);
-  console.log(chalk.gray("    Compile contract, build, and deploy"));
+  console.log(chalk.gray("    Compile contract and deploy"));
   console.log();
   console.log(`  ${chalk.cyan(`${pmInfo.runCommand} cli`)}`);
   console.log(chalk.gray("    Interactive CLI to test your contract"));
@@ -279,26 +278,23 @@ function displayBundledSuccessMessage(projectName: string, pmInfo: any): void {
   console.log(`  ${chalk.cyan(`${pmInfo.runCommand} check-balance`)}`);
   console.log(chalk.gray("    Check your wallet balance"));
   console.log();
-  console.log(`  ${chalk.cyan(`${pmInfo.runCommand} health-check`)}`);
-  console.log(chalk.gray("    Verify your environment setup"));
+  console.log(`  ${chalk.cyan(`${pmInfo.runCommand} proof-server:start`)}`);
+  console.log(chalk.gray("    Start the proof server (Docker)"));
   console.log();
   console.log(`  ${chalk.cyan(`${pmInfo.runCommand} compile`)}`);
   console.log(chalk.gray("    Compile Compact contracts"));
-  console.log();
-  console.log(`  ${chalk.cyan(`${pmInfo.runCommand} build`)}`);
-  console.log(chalk.gray("    Build TypeScript to JavaScript"));
   console.log();
   console.log(chalk.green.bold("━".repeat(60)));
   console.log();
   console.log(chalk.magenta("💡 Tips:"));
   console.log(
-    chalk.gray("   • Make sure Docker is running for the proof server")
+    chalk.gray("   • Make sure Docker is running for the proof server"),
   );
   console.log(
-    chalk.gray("   • Check .env for your wallet seed and network config")
+    chalk.gray("   • Your wallet seed will be generated during deployment"),
   );
   console.log(
-    chalk.gray("   • Visit https://docs.midnight.network for documentation")
+    chalk.gray("   • Visit https://docs.midnight.network for documentation"),
   );
   console.log();
   console.log(chalk.white("Happy coding! ") + chalk.yellow("🌙✨"));
@@ -310,7 +306,7 @@ async function createProject(
   projectName: string,
   templateName: string,
   packageManager: PackageManager,
-  options: CreateAppOptions
+  options: CreateAppOptions,
 ): Promise<void> {
   const pmInfo = getPackageManagerInfo(packageManager);
   const template = getTemplate(templateName);
@@ -330,7 +326,7 @@ async function createProject(
       projectName,
       template,
       packageManager,
-      options
+      options,
     );
   } else {
     await createBundledTemplate(
@@ -338,7 +334,7 @@ async function createProject(
       projectName,
       template,
       packageManager,
-      options
+      options,
     );
   }
 }
@@ -348,7 +344,7 @@ async function createRemoteTemplate(
   projectName: string,
   template: any,
   packageManager: PackageManager,
-  options: CreateAppOptions
+  options: CreateAppOptions,
 ): Promise<void> {
   const pmInfo = getPackageManagerInfo(packageManager);
 
@@ -364,7 +360,7 @@ async function createRemoteTemplate(
 
     if (template.requiresCompactCompiler) {
       checks.push(
-        RequirementChecker.checkCompactCompiler(template.compactVersion)
+        RequirementChecker.checkCompactCompiler(template.compactVersion),
       );
     }
 
@@ -381,7 +377,7 @@ async function createRemoteTemplate(
           // Offer to update Compact automatically
           const updateSuccess = await CompactUpdater.handleVersionMismatch(
             currentVersion,
-            template.compactVersion
+            template.compactVersion,
           );
 
           if (updateSuccess) {
@@ -394,32 +390,32 @@ async function createRemoteTemplate(
             if (!recheckPassed) {
               console.log(
                 chalk.red(
-                  "\n❌ Requirements still not met after update. Please check manually.\n"
-                )
+                  "\n❌ Requirements still not met after update. Please check manually.\n",
+                ),
               );
               process.exit(1);
             }
           } else {
             console.log(
               chalk.yellow(
-                "\n⚠ Please update Compact manually and try again.\n"
-              )
+                "\n⚠ Please update Compact manually and try again.\n",
+              ),
             );
             process.exit(1);
           }
         } else {
           console.log(
             chalk.yellow(
-              "\n⚠ Please install missing requirements and try again.\n"
-            )
+              "\n⚠ Please install missing requirements and try again.\n",
+            ),
           );
           process.exit(1);
         }
       } else {
         console.log(
           chalk.yellow(
-            "\n⚠ Please install missing requirements and try again.\n"
-          )
+            "\n⚠ Please install missing requirements and try again.\n",
+          ),
         );
         process.exit(1);
       }
@@ -428,7 +424,7 @@ async function createRemoteTemplate(
 
   // Clone repository
   const cloneSpinner = ora(
-    `Cloning ${template.display} from GitHub...`
+    `Cloning ${template.display} from GitHub...`,
   ).start();
   try {
     await GitCloner.clone(template.repo!, projectPath);
@@ -459,7 +455,7 @@ async function createBundledTemplate(
   projectName: string,
   template: any,
   packageManager: PackageManager,
-  options: CreateAppOptions
+  options: CreateAppOptions,
 ): Promise<void> {
   const pmInfo = getPackageManagerInfo(packageManager);
 
@@ -474,23 +470,10 @@ async function createBundledTemplate(
     throw error;
   }
 
-  // Generate wallet
-  const walletSpinner = ora("Generating secure wallet...").start();
-  try {
-    const walletGenerator = new WalletGenerator();
-    const walletSeed = await walletGenerator.generate(projectPath);
-    walletSpinner.succeed(
-      `Wallet generated (seed: ${walletSeed.substring(0, 8)}...)`
-    );
-  } catch (error) {
-    walletSpinner.fail("Failed to generate wallet");
-    throw error;
-  }
-
   // Install dependencies
   if (!options.skipInstall) {
     const installSpinner = ora(
-      `Installing dependencies with ${packageManager}...`
+      `Installing dependencies with ${packageManager}...`,
     ).start();
     try {
       const installer = new PackageInstaller(packageManager);
@@ -499,7 +482,7 @@ async function createBundledTemplate(
     } catch (error) {
       installSpinner.fail("Failed to install dependencies");
       console.log(
-        chalk.yellow("\n⚠ You can install dependencies manually by running:")
+        chalk.yellow("\n⚠ You can install dependencies manually by running:"),
       );
       console.log(chalk.cyan(`  ${pmInfo.installCommand}`));
     }
@@ -525,12 +508,12 @@ async function createBundledTemplate(
       proofSpinner.succeed("Docker is ready for proof server");
     } else {
       proofSpinner.warn(
-        "Docker not available - install it to use proof server"
+        "Docker not available - install it to use proof server",
       );
     }
   } catch (error) {
     proofSpinner.warn(
-      "Docker check failed - install Docker to use proof server"
+      "Docker check failed - install Docker to use proof server",
     );
   }
 
@@ -543,7 +526,7 @@ async function createBundledTemplate(
       compileSpinner.succeed("Contract compiled successfully");
     } catch (error) {
       compileSpinner.warn(
-        `Contract compilation skipped - run "${pmInfo.runCommand} compile" manually`
+        `Contract compilation skipped - run "${pmInfo.runCommand} compile" manually`,
       );
     }
   }
