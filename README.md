@@ -16,6 +16,7 @@ npm run setup
 ```
 
 The `setup` command:
+
 1. Starts proof server via Docker
 2. Compiles the Compact contract
 3. Deploys to Preprod (prompts for faucet funding)
@@ -64,10 +65,10 @@ Requires Compact compiler - the CLI will check and offer to install it.
 
 ## Requirements
 
-| Requirement | Version | Notes |
-|------------|---------|-------|
-| Node.js | 22+ | Required for all templates |
-| Docker | Latest | Runs proof server |
+| Requirement      | Version | Notes                                        |
+| ---------------- | ------- | -------------------------------------------- |
+| Node.js          | 22+     | Required for all templates                   |
+| Docker           | Latest  | Runs proof server                            |
 | Compact Compiler | 0.23.0+ | Counter template only (auto-install offered) |
 
 ## CLI Options
@@ -76,15 +77,15 @@ Requires Compact compiler - the CLI will check and offer to install it.
 npx create-mn-app [project-name] [options]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `-t, --template <name>` | Template: `hello-world`, `counter` |
-| `--use-npm/yarn/pnpm/bun` | Force package manager |
-| `--skip-install` | Skip dependency installation |
-| `--skip-git` | Skip git initialization |
-| `--verbose` | Show detailed output |
-| `-h, --help` | Show help |
-| `-V, --version` | Show version |
+| Option                    | Description                        |
+| ------------------------- | ---------------------------------- |
+| `-t, --template <name>`   | Template: `hello-world`, `counter` |
+| `--use-npm/yarn/pnpm/bun` | Force package manager              |
+| `--skip-install`          | Skip dependency installation       |
+| `--skip-git`              | Skip git initialization            |
+| `--verbose`               | Show detailed output               |
+| `-h, --help`              | Show help                          |
+| `-V, --version`           | Show version                       |
 
 ## Project Structure
 
@@ -119,4 +120,3 @@ my-app/
 ## License
 
 Apache-2.0 © 2025 Midnight Foundation
-
