@@ -270,16 +270,13 @@ function displayBundledSuccessMessage(projectName: string, pmInfo: any): void {
   console.log(chalk.white.bold("📚 Available Commands:"));
   console.log();
   console.log(`  ${chalk.cyan(`${pmInfo.runCommand} setup`)}`);
-  console.log(chalk.gray("    Compile contract and deploy"));
+  console.log(chalk.gray("    Start proof server, compile, and deploy"));
   console.log();
   console.log(`  ${chalk.cyan(`${pmInfo.runCommand} cli`)}`);
   console.log(chalk.gray("    Interactive CLI to test your contract"));
   console.log();
   console.log(`  ${chalk.cyan(`${pmInfo.runCommand} check-balance`)}`);
   console.log(chalk.gray("    Check your wallet balance"));
-  console.log();
-  console.log(`  ${chalk.cyan(`${pmInfo.runCommand} proof-server:start`)}`);
-  console.log(chalk.gray("    Start the proof server (Docker)"));
   console.log();
   console.log(`  ${chalk.cyan(`${pmInfo.runCommand} compile`)}`);
   console.log(chalk.gray("    Compile Compact contracts"));
@@ -288,7 +285,7 @@ function displayBundledSuccessMessage(projectName: string, pmInfo: any): void {
   console.log();
   console.log(chalk.magenta("💡 Tips:"));
   console.log(
-    chalk.gray("   • Make sure Docker is running for the proof server"),
+    chalk.gray("   • Make sure Docker Desktop is running before setup"),
   );
   console.log(
     chalk.gray("   • Your wallet seed will be generated during deployment"),

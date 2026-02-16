@@ -34,9 +34,8 @@ A Midnight Network application created with `create-mn-app`.
 
 ### Available Scripts
 
-- `npm run setup` - Compile and deploy contract
+- `npm run setup` - Start proof server, compile contract, and deploy
 - `npm run compile` - Compile Compact contract
-- `npm run build` - Type check TypeScript
 - `npm run deploy` - Deploy contract to Preprod
 - `npm run cli` - Interactive CLI for contract
 - `npm run check-balance` - Check wallet balance
