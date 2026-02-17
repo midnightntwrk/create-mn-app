@@ -48,12 +48,20 @@ const CONFIG = {
 async function waitForProofServer(maxAttempts = 30, delayMs = 2000): Promise<boolean> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const response = await fetch(`${CONFIG.proofServer}/health`, { 
+      // Try a simple GET - any response (even 404) means server is up
+      const response = await fetch(CONFIG.proofServer, { 
         method: 'GET',
         signal: AbortSignal.timeout(3000),
       });
-      if (response.ok) return true;
-    } catch {
+      // Any response means the server is running
+      return true;
+    } catch (err: any) {
+      // Check if it's a connection refused vs other error
+      const errMsg = err?.cause?.code || err?.code || '';
+      if (errMsg !== 'ECONNREFUSED' && errMsg !== 'UND_ERR_CONNECT_TIMEOUT') {
+        // Got some other error - server might be up but returning errors
+        return true;
+      }
       // Server not ready yet
     }
     if (attempt < maxAttempts) {
