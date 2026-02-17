@@ -167,16 +167,63 @@ async function main() {
   const rl = createInterface({ input: stdin, output: stdout });
 
   try {
+    // Check for existing deployment.json (previous attempt or completed deployment)
+    let existingSeed: string | undefined;
+    let existingContract: string | undefined;
+
+    if (fs.existsSync('deployment.json')) {
+      try {
+        const existing = JSON.parse(fs.readFileSync('deployment.json', 'utf-8'));
+        if (existing.seed) existingSeed = existing.seed;
+        if (existing.contractAddress) existingContract = existing.contractAddress;
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    // If already deployed, ask if they want to redeploy
+    if (existingContract) {
+      console.log('─── Existing Deployment Found ──────────────────────────────────\n');
+      console.log(`  Contract: ${existingContract}`);
+      const redeploy = await rl.question('\n  Deploy a new contract? [y/N] ');
+      if (redeploy.toLowerCase() !== 'y') {
+        console.log('\n  Run `npm run cli` to interact with your existing contract.\n');
+        return;
+      }
+      existingSeed = undefined; // Fresh deployment = fresh wallet
+    }
+
     // 1. Wallet setup
     console.log('─── Step 1: Wallet Setup ───────────────────────────────────────\n');
-    const choice = await rl.question('  [1] Create new wallet\n  [2] Restore from seed\n  > ');
 
-    const seed = choice.trim() === '2'
-      ? await rl.question('\n  Enter your 64-character seed: ')
-      : toHex(Buffer.from(generateRandomSeed()));
+    let seed: string;
 
-    if (choice.trim() !== '2') {
-      console.log(`\n  ⚠️  SAVE THIS SEED (you'll need it later):\n  ${seed}\n`);
+    if (existingSeed) {
+      // Resume from previous failed deployment
+      console.log('  Found saved seed from previous attempt.');
+      const useSaved = await rl.question('  Use saved wallet? [Y/n] ');
+      if (useSaved.toLowerCase() !== 'n') {
+        seed = existingSeed;
+        console.log('  Using saved wallet...\n');
+      } else {
+        const choice = await rl.question('  [1] Create new wallet\n  [2] Restore from seed\n  > ');
+        seed = choice.trim() === '2'
+          ? await rl.question('\n  Enter your 64-character seed: ')
+          : toHex(Buffer.from(generateRandomSeed()));
+
+        if (choice.trim() !== '2') {
+          console.log(`\n  ⚠️  SAVE THIS SEED (you'll need it later):\n  ${seed}\n`);
+        }
+      }
+    } else {
+      const choice = await rl.question('  [1] Create new wallet\n  [2] Restore from seed\n  > ');
+      seed = choice.trim() === '2'
+        ? await rl.question('\n  Enter your 64-character seed: ')
+        : toHex(Buffer.from(generateRandomSeed()));
+
+      if (choice.trim() !== '2') {
+        console.log(`\n  ⚠️  SAVE THIS SEED (you'll need it later):\n  ${seed}\n`);
+      }
     }
 
     console.log('  Creating wallet...');
@@ -236,12 +283,67 @@ async function main() {
     console.log('  Setting up providers...');
     const providers = await createProviders(walletCtx);
 
-    console.log('  Deploying contract (this may take 30-60 seconds)...\n');
-    const deployed = await deployContract(providers, {
-      compiledContract,
-      privateStateId: 'helloWorldState',
-      initialPrivateState: {},
-    });
+    console.log('  Deploying contract...\n');
+
+    const MAX_RETRIES = 5;
+    const RETRY_DELAY_MS = 30000; // 30 seconds between retries
+
+    let deployed: Awaited<ReturnType<typeof deployContract>> | undefined;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        deployed = await deployContract(providers, {
+          compiledContract,
+          privateStateId: 'helloWorldState',
+          initialPrivateState: {},
+        });
+        break; // Success - exit retry loop
+      } catch (err: any) {
+        const errMsg = err?.message || err?.toString() || '';
+
+        // Check if it's a DUST-related error
+        if (errMsg.includes('Not enough Dust') || errMsg.includes('Wallet.Transacting')) {
+          if (attempt < MAX_RETRIES) {
+            console.log(`  ⏳ Waiting for more DUST to generate (attempt ${attempt}/${MAX_RETRIES})...`);
+            console.log('     DUST generates as blocks are produced (~30s per block)');
+            console.log(`     Retrying in ${RETRY_DELAY_MS / 1000}s...\n`);
+
+            // Countdown display
+            for (let i = RETRY_DELAY_MS / 1000; i > 0; i -= 5) {
+              await new Promise((r) => setTimeout(r, 5000));
+              if (i > 5) process.stdout.write(`\r     ${i - 5}s remaining...   `);
+            }
+            process.stdout.write('\r                              \r');
+          } else {
+            // All retries exhausted
+            console.log('  ❌ Not enough DUST generated yet.\n');
+            console.log('  DUST is generated over time as blocks are produced.');
+            console.log('  Your wallet and funds are saved - just retry later:\n');
+            console.log('  $ npm run deploy\n');
+
+            // Save partial deployment info so user can resume
+            const partialInfo = {
+              seed,
+              network: 'preprod',
+              status: 'pending_dust',
+              lastAttempt: new Date().toISOString(),
+            };
+            fs.writeFileSync('deployment.json', JSON.stringify(partialInfo, null, 2));
+            console.log('  Seed saved to deployment.json for retry.\n');
+
+            await walletCtx.wallet.stop();
+            process.exit(1);
+          }
+        } else {
+          // Not a DUST error - rethrow
+          throw err;
+        }
+      }
+    }
+
+    if (!deployed) {
+      throw new Error('Deployment failed after all retries');
+    }
 
     const contractAddress = deployed.deployTxData.public.contractAddress;
     console.log('  ✅ Contract deployed successfully!\n');
