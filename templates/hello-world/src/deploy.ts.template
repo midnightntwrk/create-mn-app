@@ -285,8 +285,8 @@ async function main() {
 
     console.log('  Deploying contract...\n');
 
-    const MAX_RETRIES = 5;
-    const RETRY_DELAY_MS = 30000; // 30 seconds between retries
+    const MAX_RETRIES = 8;
+    const RETRY_DELAY_MS = 15000; // 15 seconds between retries
 
     let deployed: Awaited<ReturnType<typeof deployContract>> | undefined;
 
@@ -303,33 +303,48 @@ async function main() {
 
         // Check if it's a DUST-related error
         if (errMsg.includes('Not enough Dust') || errMsg.includes('Wallet.Transacting')) {
+          // Get current DUST balance
+          const currentState = await Rx.firstValueFrom(walletCtx.wallet.state().pipe(Rx.filter((s) => s.isSynced)));
+          const dustBalance = currentState.dust.walletBalance(new Date());
+
           if (attempt < MAX_RETRIES) {
-            console.log(`  ⏳ Waiting for more DUST to generate (attempt ${attempt}/${MAX_RETRIES})...`);
-            console.log('     DUST generates as blocks are produced (~30s per block)');
-            console.log(`     Retrying in ${RETRY_DELAY_MS / 1000}s...\n`);
+            console.log(`  ⏳ DUST balance: ${dustBalance.toLocaleString()} (need more for tx fees)`);
+            console.log(`     Attempt ${attempt}/${MAX_RETRIES} - waiting for DUST to accumulate...`);
 
             // Countdown display
             for (let i = RETRY_DELAY_MS / 1000; i > 0; i -= 5) {
+              process.stdout.write(`\r     Retrying in ${i}s...   `);
               await new Promise((r) => setTimeout(r, 5000));
-              if (i > 5) process.stdout.write(`\r     ${i - 5}s remaining...   `);
             }
-            process.stdout.write('\r                              \r');
+            process.stdout.write('\r                              \r\n');
           } else {
             // All retries exhausted
-            console.log('  ❌ Not enough DUST generated yet.\n');
-            console.log('  DUST is generated over time as blocks are produced.');
-            console.log('  Your wallet and funds are saved - just retry later:\n');
-            console.log('  $ npm run deploy\n');
+            console.log('  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('  ❌ Not enough DUST for transaction fees\n');
+            console.log(`     Current DUST: ${dustBalance.toLocaleString()}`);
+            console.log('     This is a new wallet - DUST generates over time.\n');
+            console.log('  ┌─ Options ─────────────────────────────────────────────────┐');
+            console.log('  │                                                           │');
+            console.log('  │  [1] Wait & retry     $ npm run deploy                    │');
+            console.log('  │      (DUST accumulates as blocks are produced)            │');
+            console.log('  │                                                           │');
+            console.log('  │  [2] Send DUST from existing wallet to this address:      │');
+            console.log(`  │      ${address.slice(0, 50)}...  │`);
+            console.log('  │                                                           │');
+            console.log('  │  [3] Import wallet with DUST (choose option 2 on retry)   │');
+            console.log('  │                                                           │');
+            console.log('  └───────────────────────────────────────────────────────────┘\n');
 
             // Save partial deployment info so user can resume
             const partialInfo = {
               seed,
+              address,
               network: 'preprod',
               status: 'pending_dust',
               lastAttempt: new Date().toISOString(),
             };
             fs.writeFileSync('deployment.json', JSON.stringify(partialInfo, null, 2));
-            console.log('  Seed saved to deployment.json for retry.\n');
+            console.log('  Wallet saved to deployment.json\n');
 
             await walletCtx.wallet.stop();
             process.exit(1);
