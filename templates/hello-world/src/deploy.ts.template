@@ -43,6 +43,27 @@ const CONFIG = {
   faucetUrl: 'https://faucet.preprod.midnight.network/',
 };
 
+// ─── Proof Server Health Check ─────────────────────────────────────────────────
+
+async function waitForProofServer(maxAttempts = 30, delayMs = 2000): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(`${CONFIG.proofServer}/health`, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      });
+      if (response.ok) return true;
+    } catch {
+      // Server not ready yet
+    }
+    if (attempt < maxAttempts) {
+      process.stdout.write(`\r  Waiting for proof server... (${attempt}/${maxAttempts})   `);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return false;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
 
@@ -280,6 +301,31 @@ async function main() {
 
     // 4. Deploy contract
     console.log('─── Step 4: Deploy Contract ────────────────────────────────────\n');
+
+    // Check proof server is running
+    console.log('  Checking proof server...');
+    const proofServerReady = await waitForProofServer();
+    if (!proofServerReady) {
+      console.log('\n  ❌ Proof server not responding\n');
+      console.log('  The proof server is required to generate zk-proofs for transactions.\n');
+      console.log('  ┌─ Start it with ──────────────────────────────────────────────┐');
+      console.log('  │                                                              │');
+      console.log('  │  $ docker compose up -d                                      │');
+      console.log('  │                                                              │');
+      console.log('  │  Then retry:  $ npm run deploy                               │');
+      console.log('  │                                                              │');
+      console.log('  └──────────────────────────────────────────────────────────────┘\n');
+
+      // Save seed for retry
+      const partialInfo = { seed, address, network: 'preprod', status: 'proof_server_unavailable' };
+      fs.writeFileSync('deployment.json', JSON.stringify(partialInfo, null, 2));
+      console.log('  Wallet saved to deployment.json\n');
+
+      await walletCtx.wallet.stop();
+      process.exit(1);
+    }
+    process.stdout.write('\r  Proof server ready!                    \n');
+
     console.log('  Setting up providers...');
     const providers = await createProviders(walletCtx);
 
@@ -300,9 +346,33 @@ async function main() {
         break; // Success - exit retry loop
       } catch (err: any) {
         const errMsg = err?.message || err?.toString() || '';
+        const errCause = err?.cause?.message || err?.cause?.toString() || '';
+        const fullError = `${errMsg} ${errCause}`;
 
-        // Check if it's a DUST-related error
-        if (errMsg.includes('Not enough Dust') || errMsg.includes('Wallet.Transacting')) {
+        // Check for proof server errors first
+        if (fullError.includes('Failed to connect to Proof Server') || 
+            fullError.includes('Failed to prove') ||
+            fullError.includes('127.0.0.1:6300')) {
+          console.log('  ❌ Proof server error\n');
+          console.log('  The proof server may have stopped or crashed.\n');
+          console.log('  ┌─ Fix ────────────────────────────────────────────────────────┐');
+          console.log('  │                                                              │');
+          console.log('  │  1. Check if running:  $ docker ps                           │');
+          console.log('  │  2. Restart:           $ docker compose up -d                │');
+          console.log('  │  3. Retry:             $ npm run deploy                      │');
+          console.log('  │                                                              │');
+          console.log('  └──────────────────────────────────────────────────────────────┘\n');
+
+          const partialInfo = { seed, address, network: 'preprod', status: 'proof_server_error' };
+          fs.writeFileSync('deployment.json', JSON.stringify(partialInfo, null, 2));
+          console.log('  Wallet saved to deployment.json\n');
+
+          await walletCtx.wallet.stop();
+          process.exit(1);
+        }
+
+        // Check if it's a DUST-related error (must check "Not enough Dust" specifically)
+        if (fullError.includes('Not enough Dust')) {
           // Get current DUST balance
           const currentState = await Rx.firstValueFrom(walletCtx.wallet.state().pipe(Rx.filter((s) => s.isSynced)));
           const dustBalance = currentState.dust.walletBalance(new Date());

@@ -8,7 +8,7 @@
   "scripts": {
     "compile": "compact compile contracts/hello-world.compact contracts/managed/hello-world",
     "build": "npx tsc --noEmit || true",
-    "setup": "docker compose up -d && echo 'Waiting for proof server...' && sleep 5 && npm run compile && npm run deploy",
+    "setup": "docker compose up -d && npm run compile && npm run deploy",
     "deploy": "npx tsx src/deploy.ts",
     "cli": "npx tsx src/cli.ts",
     "check-balance": "npx tsx src/check-balance.ts",
