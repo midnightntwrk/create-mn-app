@@ -84,10 +84,10 @@ export class SetupGuide {
     console.log(
       chalk.gray("    $ ") +
         chalk.cyan(
-          "docker run -p 6300:6300 midnightntwrk/proof-server -- 'midnight-proof-server -v'",
+          "docker run -d -p 6300:6300 -e PORT=6300 midnightntwrk/proof-server:7.0.0",
         ),
     );
-    console.log(chalk.gray("      keep this terminal running"));
+    console.log(chalk.gray("      (runs in background)"));
     console.log();
 
     console.log(chalk.bold("[" + chalk.green("▶") + "] Run Application\n"));
