@@ -1,15 +1,13 @@
 # create-mn-app
 
-Scaffold Midnight Network applications.
+Scaffold Midnight Network applications on Preprod.
 
 [![npm version](https://img.shields.io/npm/v/create-mn-app.svg)](https://www.npmjs.com/package/create-mn-app)
 [![npm downloads](https://img.shields.io/npm/dw/create-mn-app.svg)](https://www.npmjs.com/package/create-mn-app)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Node.js](https://img.shields.io/node/v/create-mn-app.svg)](https://nodejs.org/)
 
-## Installation
-
-**Recommended (no install needed):**
+## Quick Start
 
 ```bash
 npx create-mn-app my-app
@@ -17,79 +15,47 @@ cd my-app
 npm run setup
 ```
 
-**Or install globally:**
+The `setup` command:
 
-```bash
-npm i -g create-mn-app
-create-mn-app my-app
-```
+1. Starts proof server via Docker
+2. Compiles the Compact contract
+3. Deploys to Preprod (prompts for faucet funding)
 
-> Using `npx` is recommended - it always runs the latest version without needing updates.
+> Fund your wallet at [faucet.preprod.midnight.network](https://faucet.preprod.midnight.network/)
 
 ## Why create-mn-app?
 
-- **Zero Configuration**: Start building immediately without complex setup
-- **Best Practices**: Pre-configured TypeScript, hot reloading, and project structure
-- **Production Ready**: Includes wallet generation, environment management, and deployment scripts
-- **Developer Experience**: Interactive prompts, health checks, and helpful error messages
-- **Stay Updated**: Built-in update notifier keeps you on the latest version
-
-## Features
-
-- **Interactive project setup** with template selection
-- **Auto-detects package manager** (npm/yarn/pnpm/bun)
-- **Smart dependency management**:
-  - Checks Node.js, Docker, and Compact compiler versions
-  - **Automatic Compact compiler updates** when version mismatch detected
-  - Prompts user before updating with clear explanations
-- **TypeScript** with hot reloading
-- **Pre-configured Compact contracts**
-- **Secure wallet generation**
-- **Environment health checks**
-
-## Quick Start
-
-### Interactive Mode
-
-```bash
-npx create-mn-app
-```
-
-### CLI Mode
-
-```bash
-npx create-mn-app my-app --template hello-world
-cd my-app
-npm run setup
-```
+- **Zero Configuration** - Start building immediately
+- **Preprod Ready** - Deploys to Midnight Preprod network
+- **SDK 3.0** - Uses latest Midnight wallet and contract SDKs
+- **One Command Setup** - Single `npm run setup` handles everything
+- **Auto-updates** - Built-in notifier for new versions
 
 ## Templates
 
 ### Hello World (Default)
 
-Basic message storage contract demonstrating state management and deployment.
+Basic message storage contract demonstrating state management.
 
 ```bash
 npx create-mn-app my-app
+cd my-app
+npm run setup     # starts proof server, compiles, deploys
+npm run cli       # interact with deployed contract
 ```
 
-### Counter DApp
+### Counter
 
-Real-world example with increment/decrement state and zkProofs.
+Increment/decrement counter with zkProofs. Cloned from [midnightntwrk/example-counter](https://github.com/midnightntwrk/example-counter).
 
 ```bash
 npx create-mn-app my-app --template counter
-```
-
-Cloned from [Midnight Network's example-counter](https://github.com/midnightntwrk/example-counter). Requires Node.js 22+, Docker, and Compact compiler.
-
-After creation:
-
-```bash
 cd my-app
 npm install
-# Follow setup instructions displayed
+# follow displayed instructions
 ```
+
+Requires Compact compiler - the CLI will check and offer to install it.
 
 ### Coming Soon
 
@@ -99,52 +65,44 @@ npm install
 
 ## Requirements
 
-- **Node.js 22+** - Required for all templates
-- **Docker** - Required for running the proof server
-- **npm/yarn/pnpm/bun** - Package manager (auto-detected)
-- **Compact Compiler 0.23.0+** - Required for Counter template
-  - **Auto-update available**: If you have an older version, the CLI will offer to update it automatically
-  - Version compatibility checked before project creation
-  - Manual installation: See [Compact releases](https://github.com/midnightntwrk/compact/releases/latest)
+| Requirement      | Version | Notes                                        |
+| ---------------- | ------- | -------------------------------------------- |
+| Node.js          | 22+     | Required for all templates                   |
+| Docker           | Latest  | Runs proof server                            |
+| Compact Compiler | 0.23.0+ | Counter template only (auto-install offered) |
 
 ## CLI Options
 
 ```bash
 npx create-mn-app [project-name] [options]
-
-Options:
-  -t, --template <name>     Template: hello-world, counter
-  --use-npm                 Use npm
-  --use-yarn                Use Yarn
-  --use-pnpm                Use pnpm
-  --use-bun                 Use bun
-  --skip-install            Skip dependency installation
-  --skip-git                Skip git initialization
-  --verbose                 Show detailed output
-  -h, --help                Help
-  -V, --version             Version
 ```
+
+| Option                    | Description                        |
+| ------------------------- | ---------------------------------- |
+| `-t, --template <name>`   | Template: `hello-world`, `counter` |
+| `--use-npm/yarn/pnpm/bun` | Force package manager              |
+| `--skip-install`          | Skip dependency installation       |
+| `--skip-git`              | Skip git initialization            |
+| `--verbose`               | Show detailed output               |
+| `-h, --help`              | Show help                          |
+| `-V, --version`           | Show version                       |
 
 ## Project Structure
 
 ```
-create-mn-app/
-├── bin/
-│   └── create-midnight-app.js    # CLI entry point
+my-app/
+├── contracts/
+│   └── hello-world.compact    # Compact smart contract
 ├── src/
-│   ├── cli.ts                     # Main CLI logic
-│   ├── create-app.ts              # Project scaffolding
-│   ├── installers/                # Package & proof server setup
-│   └── utils/                     # Helpers & templates
-├── templates/
-│   └── hello-world/               # Bundled template
+│   ├── cli.ts                 # Interact with deployed contract
+│   ├── deploy.ts              # Deploy contract to Preprod
+│   └── check-balance.ts       # Check wallet balance
+├── docker-compose.yml         # Proof server config
 ├── package.json
-└── tsconfig.json
+└── deployment.json            # Generated after deploy (contains wallet seed)
 ```
 
 ## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -156,10 +114,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 - [Midnight Docs](https://docs.midnight.network)
 - [Discord Community](https://discord.com/invite/midnightnetwork)
-- [GitHub](https://github.com/Olanetsoft/create-mn-app)
+- [GitHub](https://github.com/midnightntwrk/create-mn-app)
+- [Preprod Faucet](https://faucet.preprod.midnight.network/)
 
 ## License
 
 Apache-2.0 © 2025 Midnight Foundation
-
-See [LICENSE](LICENSE) for more information.

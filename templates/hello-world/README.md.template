@@ -25,8 +25,7 @@ A Midnight Network application created with `create-mn-app`.
    This will:
 
    - Compile your Compact contract
-   - Build TypeScript to JavaScript
-   - Deploy contract to the testnet
+   - Deploy contract to Preprod
 
 3. **Interact with your contract**:
    ```bash
@@ -35,23 +34,14 @@ A Midnight Network application created with `create-mn-app`.
 
 ### Available Scripts
 
-- `npm run setup` - Compile, build, and deploy contract
+- `npm run setup` - Start proof server, compile contract, and deploy
 - `npm run compile` - Compile Compact contract
-- `npm run build` - Build TypeScript
-- `npm run deploy` - Deploy contract to testnet
+- `npm run deploy` - Deploy contract to Preprod
 - `npm run cli` - Interactive CLI for contract
 - `npm run check-balance` - Check wallet balance
-- `npm run reset` - Reset all compiled/built files
+- `npm run proof-server:start` - Start proof server (Docker)
+- `npm run proof-server:stop` - Stop proof server
 - `npm run clean` - Clean build artifacts
-
-### Environment Variables
-
-Copy `.env.example` to `.env` and configure:
-
-- `WALLET_SEED` - Your 64-character wallet seed (auto-generated)
-- `MIDNIGHT_NETWORK` - Network to use (testnet)
-- `PROOF_SERVER_URL` - Proof server URL
-- `CONTRACT_NAME` - Contract name
 
 ### Project Structure
 
@@ -59,22 +49,21 @@ Copy `.env.example` to `.env` and configure:
 {{projectName}}/
 ├── contracts/
 │   ├── hello-world.compact    # Smart contract source
-│   └── managed/               # Compiled artifacts
+│   └── managed/               # Compiled artifacts (after compile)
 ├── src/
 │   ├── deploy.ts             # Deployment script
 │   ├── cli.ts                # Interactive CLI
-│   ├── providers/            # Shared providers
-│   └── utils/                # Utility functions
-├── .env                      # Environment config (keep private!)
-├── deployment.json           # Deployment info
+│   └── check-balance.ts      # Balance checker
+├── docker-compose.yml        # Proof server config
+├── deployment.json           # Deployment info (after deploy)
 └── package.json
 ```
 
-### Getting Testnet Tokens
+### Getting Preprod Tokens
 
 1. Run `npm run deploy` to see your wallet address
-2. Visit [https://midnight.network/test-faucet](https://midnight.network/test-faucet)
-3. Enter your address to receive test tokens
+2. Visit [https://faucet.preprod.midnight.network/](https://faucet.preprod.midnight.network/)
+3. Enter your address to receive test tokens (tNight)
 
 ### Learn More
 

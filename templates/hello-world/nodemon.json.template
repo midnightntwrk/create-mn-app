@@ -1,7 +1,0 @@
-{
-  "watch": ["contracts/**/*.compact", "src/**/*.ts"],
-  "ext": "compact,ts",
-  "ignore": ["contracts/managed/**", "dist/**", "node_modules/**"],
-  "exec": "npm run compile && npm run build",
-  "delay": "1000"
-}

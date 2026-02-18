@@ -24,7 +24,7 @@ export class TemplateManager {
     const templatePath = path.join(
       __dirname,
       "../../templates",
-      this.templateName
+      this.templateName,
     );
 
     if (!fs.existsSync(templatePath)) {
@@ -46,7 +46,7 @@ export class TemplateManager {
   private async copyTemplate(
     templatePath: string,
     projectPath: string,
-    templateVars: Record<string, any>
+    templateVars: Record<string, any>,
   ): Promise<void> {
     const files = await fs.readdir(templatePath, { withFileTypes: true });
 
@@ -57,8 +57,6 @@ export class TemplateManager {
       // Handle special file names
       if (file.name === "_gitignore") {
         destPath = path.join(projectPath, ".gitignore");
-      } else if (file.name === "_env.template") {
-        destPath = path.join(projectPath, ".env.example");
       }
 
       if (file.isDirectory()) {

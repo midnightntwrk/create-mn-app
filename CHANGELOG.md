@@ -7,6 +7,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.17] - 2026-02-17
+
+### Fixed
+
+- **Proof server docker-compose configuration**
+  - Removed invalid `command: proof-server -v`
+  - Added `PORT=6300` environment variable (required by container)
+- **Proof server health check**
+  - Now accepts any HTTP response (not just /health)
+  - Properly distinguishes connection refused vs server errors
+
+## [0.3.16] - 2026-02-17
+
+### Added
+
+- **Proof server health check before deployment**
+  - `waitForProofServer()` polls server up to 30 attempts
+  - Shows progress: `Waiting for proof server... (5/30)`
+  - Clear error message with fix instructions if unavailable
+
+### Changed
+
+- Removed hacky `sleep 5` from setup script - deploy handles waiting
+- Better error detection distinguishes proof server vs DUST errors
+
+## [0.3.15] - 2026-02-17
+
+### Changed
+
+- **Improved DUST retry messaging**
+  - Shows actual DUST balance on each retry attempt
+  - 8 retries × 15s (more responsive than 5 × 30s)
+  - Clear options box on failure with guidance
+
+## [0.3.14] - 2026-02-17
+
+### Added
+
+- **DUST retry logic with auto-resume**
+  - Retry deployment up to 5 times on DUST errors
+  - Show countdown timer between retries
+  - Auto-detect and offer to resume from previous failed attempts
+  - Detect existing contract and ask before redeploying
+  - Save seed to deployment.json for manual retry
+
+## [0.3.13] - 2026-02-16
+
+### Changed
+
+- README updated for SDK 3.0 and Preprod
+- Table formatting improvements
+
+## [0.3.12] - 2026-02-16
+
+### Changed
+
+- Setup script now includes `docker compose up -d` before compile/deploy
+- Streamlined single-command setup experience
+
+## [0.3.11] - 2026-02-16
+
+### Fixed
+
+- Version display now uses `pkg.version` instead of hardcoded value
+
+## [0.3.10] - 2026-02-16
+
+### Changed
+
+- **Complete SDK 3.0 rewrite for Preprod network**
+  - New wallet SDK pattern: HDWallet, WalletFacade, ShieldedWallet, UnshieldedWallet, DustWallet
+  - Network ID: `setNetworkId('preprod')` as string (not enum)
+  - Correct package versions: `@midnight-ntwrk/compact-js@2.4.0`, `@midnight-ntwrk/ledger-v7@7.0.0`
+- **Simplified template structure**
+  - Removed unused files: `_env.template`, `nodemon.json.template`, `health-check.ts.template`, `providers/`, `utils/`
+  - Added `docker-compose.yml.template` for proof server
+  - Uses `tsx` for runtime TypeScript (no build step)
+- **Interactive deploy flow**
+  - Prompts for new wallet or restore from seed
+  - Auto-waits for faucet funding
+  - Registers and waits for DUST tokens
+  - Shows wallet address and balance throughout
+
+## [0.3.9] - 2026-02-16
+
+### Fixed
+
+- Fix contract compilation check to support both ESM (.js) and CommonJS (.cjs) outputs
+
+## [0.3.8] - 2026-02-16
+
+### Changed
+
+- **Default network changed from testnet to Preprod**
+  - All network endpoints updated to `preprod.midnight.network`
+  - Indexer API upgraded from v1 to v3 (`/api/v3/graphql`)
+  - Faucet URL updated to `https://faucet.preprod.midnight.network/`
+- **Proof server command simplified**
+  - Removed `--network testnet` flag, now uses `-v` only
+  - Docker image updated to `midnightntwrk/proof-server`
+- **DRY refactoring of hello-world template**
+  - Centralized network configuration in `EnvironmentManager.initializeNetwork()`
+  - Added `faucetUrl` and `networkId` to `NetworkConfig` interface
+  - Added warning for invalid/unknown network values
+  - Removed redundant `setNetworkId()` calls across files
+  - Cleaned up unused imports
+
+### Fixed
+
+- Network validation now warns instead of silently falling back
+
 ## [0.3.5] - 2025-10-31
 
 ### Added

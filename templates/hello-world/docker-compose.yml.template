@@ -1,0 +1,9 @@
+services:
+  proof-server:
+    image: midnightntwrk/proof-server:7.0.0
+    platform: linux/amd64
+    environment:
+      - PORT=6300
+    ports:
+      - "6300:6300"
+    restart: unless-stopped

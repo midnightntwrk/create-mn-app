@@ -49,13 +49,9 @@ export class ProofServerSetup {
 
   private async isProofServerImageAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
-      const child = spawn(
-        "docker",
-        ["images", "midnightnetwork/proof-server"],
-        {
-          stdio: "pipe",
-        }
-      );
+      const child = spawn("docker", ["images", "midnightntwrk/proof-server"], {
+        stdio: "pipe",
+      });
 
       let output = "";
       child.stdout?.on("data", (data) => {
@@ -64,7 +60,7 @@ export class ProofServerSetup {
 
       child.on("close", (code) => {
         // Check if image exists in output
-        const hasImage = output.includes("midnightnetwork/proof-server");
+        const hasImage = output.includes("midnightntwrk/proof-server");
         resolve(code === 0 && hasImage);
       });
 

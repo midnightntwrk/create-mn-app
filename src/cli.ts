@@ -22,7 +22,7 @@ import * as path from "path";
 import * as fs from "fs";
 
 const pkg = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "../package.json"), "utf-8")
+  fs.readFileSync(path.join(__dirname, "../package.json"), "utf-8"),
 );
 
 // Check for updates
@@ -38,11 +38,11 @@ ErrorHandler.checkNodeVersion(22);
 program
   .name("create-mn-app")
   .description("Create a new Midnight Network application")
-  .version("0.3.4")
+  .version(pkg.version)
   .argument("[project-directory]", "Directory name for your project")
   .option(
     "-t, --template <name>",
-    "Template to use (hello-world, counter, bboard, dex, midnight-kitties)"
+    "Template to use (hello-world, counter, bboard, dex, midnight-kitties)",
   )
   .option("--use-npm", "Use npm explicitly")
   .option("--use-yarn", "Use yarn explicitly")
@@ -52,7 +52,9 @@ program
   .option("--skip-git", "Skip git repository initialization")
   .option("--verbose", "Show detailed output")
   .action(async (projectDirectory, options) => {
-    console.log(chalk.bold.cyan("\ncreate-mn-app") + chalk.gray(" v0.3.5\n"));
+    console.log(
+      chalk.bold.cyan("\ncreate-mn-app") + chalk.gray(` v${pkg.version}\n`),
+    );
 
     try {
       await createApp(projectDirectory, options);
@@ -61,8 +63,8 @@ program
       console.error(
         ErrorHandler.formatError(
           error instanceof Error ? error : new Error(String(error)),
-          "creating app"
-        )
+          "creating app",
+        ),
       );
 
       if (error instanceof Error) {
