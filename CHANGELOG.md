@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.19] - 2026-02-19
+
+### Added
+
+- **Bulletin Board (Bboard) template**
+  - Multi-user bulletin board with privacy patterns
+  - Includes CLI interface and Web UI
+  - Cloned from [midnightntwrk/example-bboard](https://github.com/midnightntwrk/example-bboard)
+  - Requires Compact compiler and Lace wallet (for Web UI)
+
 ## [0.3.17] - 2026-02-17
 
 ### Fixed

@@ -58,10 +58,12 @@ export const templates: Template[] = [
     display: "Bulletin Board (Bboard)",
     description:
       "Bulletin board with multi-user interactions and privacy patterns",
-    available: false,
-    comingSoon: true,
+    available: true,
     type: "remote",
     repo: "midnightntwrk/example-bboard",
+    nodeVersion: 22,
+    requiresCompactCompiler: true,
+    compactVersion: "0.23.0",
   },
   {
     name: "dex",

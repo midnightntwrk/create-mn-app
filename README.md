@@ -57,9 +57,21 @@ npm install
 
 Requires Compact compiler - the CLI will check and offer to install it.
 
+### Bulletin Board (Bboard)
+
+Multi-user bulletin board with privacy patterns. Includes CLI and Web UI. Cloned from [midnightntwrk/example-bboard](https://github.com/midnightntwrk/example-bboard).
+
+```bash
+npx create-mn-app my-app --template bboard
+cd my-app
+npm install
+# follow displayed instructions
+```
+
+Requires Compact compiler and Lace wallet extension (for Web UI).
+
 ### Coming Soon
 
-- Bulletin Board - Multi-user interactions with privacy patterns
 - DEX - Decentralized exchange using FungibleToken
 - Midnight Kitties - NFT-based full stack DApp
 
