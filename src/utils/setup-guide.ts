@@ -40,8 +40,9 @@ export class SetupGuide {
 
     if (templateName === "counter") {
       this.displayCounterInstructions(projectName, packageManager);
+    } else if (templateName === "bboard") {
+      this.displayBboardInstructions(projectName, packageManager);
     }
-    // Add other templates as they become available
   }
 
   /**
@@ -94,6 +95,85 @@ export class SetupGuide {
     console.log(
       chalk.gray("    $ ") + chalk.cyan(`cd counter-cli && ${runCmd} start`),
     );
+    console.log();
+
+    console.log(chalk.bold("[" + chalk.yellow("!") + "] Important\n"));
+    console.log(chalk.gray("    • create wallet and fund from faucet"));
+    console.log(
+      chalk.gray(
+        "    • Preprod faucet: https://faucet.preprod.midnight.network/",
+      ),
+    );
+    console.log(chalk.gray("    • funding takes 2-3 minutes"));
+    console.log(chalk.gray("    • see README.md for detailed guide"));
+    console.log();
+  }
+
+  /**
+   * Display Bboard template instructions
+   */
+  private static displayBboardInstructions(
+    projectName: string,
+    pm: PackageManager,
+  ): void {
+    const installCmd =
+      pm === "npm"
+        ? "npm install"
+        : pm === "yarn"
+          ? "yarn"
+          : pm === "pnpm"
+            ? "pnpm install"
+            : "bun install";
+    const runCmd = pm === "npm" ? "npm run" : pm;
+
+    console.log(chalk.gray("    project structure:"));
+    console.log(chalk.gray("    ├─ contract/     smart contract (compact)"));
+    console.log(chalk.gray("    ├─ api/          shared api methods"));
+    console.log(chalk.gray("    ├─ bboard-cli/   cli interface"));
+    console.log(chalk.gray("    └─ bboard-ui/    web browser interface"));
+    console.log();
+
+    console.log(chalk.gray("    $ ") + chalk.cyan(`cd ${projectName}`));
+    console.log(chalk.gray("    $ ") + chalk.cyan(installCmd));
+    console.log(
+      chalk.gray("    $ ") + chalk.cyan(`cd api && ${installCmd} && cd ..`),
+    );
+    console.log(
+      chalk.gray("    $ ") + chalk.cyan(`cd contract && ${installCmd}`),
+    );
+    console.log(chalk.gray("    $ ") + chalk.cyan(`${runCmd} compact`));
+    console.log(
+      chalk.gray("      (downloads ~500MB zk parameters on first run)"),
+    );
+    console.log(chalk.gray("    $ ") + chalk.cyan(`${runCmd} build && cd ..`));
+    console.log(
+      chalk.gray("    $ ") +
+        chalk.cyan(`cd bboard-cli && ${installCmd} && ${runCmd} build && cd ..`),
+    );
+    console.log();
+
+    console.log(chalk.bold("[" + chalk.magenta("i") + "] Proof Server\n"));
+    console.log(
+      chalk.gray("    $ ") +
+        chalk.cyan(
+          "docker run -d -p 6300:6300 -e PORT=6300 midnightntwrk/proof-server:7.0.0",
+        ),
+    );
+    console.log(chalk.gray("      (runs in background)"));
+    console.log();
+
+    console.log(chalk.bold("[" + chalk.green("▶") + "] Run CLI\n"));
+    console.log(
+      chalk.gray("    $ ") + chalk.cyan(`cd bboard-cli && ${runCmd} preprod-remote`),
+    );
+    console.log();
+
+    console.log(chalk.bold("[" + chalk.blue("◎") + "] Run Web UI (optional)\n"));
+    console.log(
+      chalk.gray("    $ ") +
+        chalk.cyan(`cd bboard-ui && ${installCmd} && ${runCmd} build:start`),
+    );
+    console.log(chalk.gray("      requires Lace wallet browser extension"));
     console.log();
 
     console.log(chalk.bold("[" + chalk.yellow("!") + "] Important\n"));
