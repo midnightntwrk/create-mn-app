@@ -19,14 +19,6 @@ export interface Template {
   description: string;
   available: boolean;
   comingSoon?: boolean;
-}
-
-export interface Template {
-  name: string;
-  display: string;
-  description: string;
-  available: boolean;
-  comingSoon?: boolean;
   type: "bundled" | "remote";
   repo?: string;
   nodeVersion?: number;
@@ -51,17 +43,19 @@ export const templates: Template[] = [
     repo: "midnightntwrk/example-counter",
     nodeVersion: 22,
     requiresCompactCompiler: true,
-    compactVersion: "0.23.0",
+    compactVersion: "0.28.0",
   },
   {
     name: "bboard",
     display: "Bulletin Board (Bboard)",
     description:
       "Bulletin board with multi-user interactions and privacy patterns",
-    available: false,
-    comingSoon: true,
+    available: true,
     type: "remote",
     repo: "midnightntwrk/example-bboard",
+    nodeVersion: 22,
+    requiresCompactCompiler: true,
+    compactVersion: "0.28.0",
   },
   {
     name: "dex",
