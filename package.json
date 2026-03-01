@@ -55,11 +55,11 @@
     "@types/cross-spawn": "^6.0.2",
     "@types/fs-extra": "^11.0.1",
     "@types/mustache": "^4.2.2",
-    "@types/node": "^20.0.0",
+    "@types/node": "^22.0.0",
     "@types/prompts": "^2.4.9",
     "@types/update-notifier": "^6.0.8",
     "@types/validate-npm-package-name": "^4.0.2",
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=22.0.0"
