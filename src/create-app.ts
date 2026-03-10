@@ -32,13 +32,39 @@ import {
   detectPackageManager,
   getPackageManagerInfo,
   type PackageManager,
+  type PackageManagerInfo,
 } from "./utils/package-manager.js";
 import {
   getAllTemplates,
   getTemplate,
   isValidTemplate,
+  getCategories,
+  getTemplatesByCategory,
+  getCategoryDisplay,
+  type Template,
+  type TemplateCategory,
 } from "./utils/templates.js";
 import { CompactUpdater } from "./utils/compact-updater.js";
+
+function cancelAndExit(): never {
+  console.log(chalk.yellow("\n✖ Operation cancelled."));
+  process.exit(0);
+}
+
+async function initGitRepo(
+  projectPath: string,
+  skipGit: boolean,
+): Promise<void> {
+  if (skipGit) return;
+
+  const gitSpinner = ora("Initializing git repository...").start();
+  try {
+    await GitUtils.init(projectPath);
+    gitSpinner.succeed("Git repository initialized");
+  } catch (_error) {
+    gitSpinner.warn("Git repository initialization skipped");
+  }
+}
 
 export interface CreateAppOptions {
   template?: string;
@@ -49,6 +75,9 @@ export interface CreateAppOptions {
   skipInstall?: boolean;
   skipGit?: boolean;
   verbose?: boolean;
+  yes?: boolean;
+  dryRun?: boolean;
+  from?: string;
 }
 
 /**
@@ -85,58 +114,142 @@ export async function createApp(
     debug("Options:", options);
   }
 
+  // Detect non-interactive mode from --yes flag or CI environment
+  const nonInteractive =
+    options.yes ||
+    process.env.CI === "true" ||
+    process.env.GITHUB_ACTIONS === "true";
+
   let projectName = projectDirectory;
   let selectedTemplate = options.template || "hello-world";
   let packageManager: PackageManager;
 
-  debug("Starting project creation", { projectName, selectedTemplate });
+  debug("Starting project creation", {
+    projectName,
+    selectedTemplate,
+    nonInteractive,
+  });
 
   // Interactive mode if no project name provided
   if (!projectName) {
-    const response = await prompts({
-      type: "text",
-      name: "projectName",
-      message: "What is your project named?",
-      initial: "my-midnight-app",
-      validate: (value) => {
-        const validation = validateProjectName(value);
-        return validation.valid || validation.problems![0];
-      },
-    });
+    if (nonInteractive) {
+      projectName = "my-midnight-app";
+      console.log(
+        chalk.dim("│  ") +
+          chalk.dim("Project: ") +
+          chalk.cyan(projectName) +
+          chalk.dim(" (default)"),
+      );
+    } else {
+      const response = await prompts({
+        type: "text",
+        name: "projectName",
+        message: "What is your project named?",
+        initial: "my-midnight-app",
+        validate: (value) => {
+          const validation = validateProjectName(value);
+          return validation.valid || validation.problems![0];
+        },
+      });
 
-    if (!response.projectName) {
-      console.log(chalk.yellow("\n✖ Operation cancelled."));
-      process.exit(0);
+      if (!response.projectName) {
+        cancelAndExit();
+      }
+
+      projectName = response.projectName;
     }
-
-    projectName = response.projectName;
   }
 
-  // Template selection if not provided
-  if (!options.template) {
-    const allTemplates = getAllTemplates();
-    const templateChoices = allTemplates.map((t) => ({
-      title: t.comingSoon
-        ? `${t.display} ${chalk.gray("(Coming Soon)")}`
-        : t.display,
-      value: t.name,
-      description: t.description,
-    }));
-
-    const response = await prompts({
-      type: "select",
-      name: "template",
-      message: "Which template would you like to use?",
-      choices: templateChoices,
-      initial: 0,
-    });
-
-    if (!response.template) {
-      console.log(chalk.yellow("\n✖ Operation cancelled."));
-      process.exit(0);
+  // Handle --from flag: create from custom GitHub repository
+  if (options.from) {
+    const repoPattern = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
+    if (!repoPattern.test(options.from)) {
+      console.error(
+        chalk.red(
+          `\n✖ Invalid repository format "${options.from}". Expected: owner/repo`,
+        ),
+      );
+      process.exit(1);
     }
 
-    selectedTemplate = response.template;
+    // Validate project name before proceeding
+    const fromValidation = validateProjectName(projectName!);
+    if (!fromValidation.valid) {
+      console.error(
+        chalk.red(`✖ Invalid project name: ${fromValidation.problems![0]}`),
+      );
+      process.exit(1);
+    }
+
+    // Use --from as a custom remote template
+    return createFromCustomRepo(projectName!, options);
+  }
+
+  // Template selection if not provided — two-step: category then template
+  if (!options.template) {
+    if (nonInteractive) {
+      console.log(
+        chalk.dim("│  ") +
+          chalk.dim("Template: ") +
+          chalk.cyan(selectedTemplate) +
+          chalk.dim(" (default)"),
+      );
+    } else {
+      // Step 1: Category selection
+      const categories = getCategories();
+      const categoryChoices = categories.map((cat) => {
+        const info = getCategoryDisplay(cat);
+        const catTemplates = getTemplatesByCategory(cat);
+        const hasAvailable = catTemplates.some((t) => t.available);
+        return {
+          title: hasAvailable
+            ? info.title
+            : `${info.title} ${chalk.yellow("(Coming Soon)")}`,
+          value: cat,
+          description: info.description,
+          disabled: !hasAvailable,
+        };
+      });
+
+      const categoryResponse = await prompts({
+        type: "select",
+        name: "category",
+        message: "What type of project would you like to create?",
+        choices: categoryChoices,
+        initial: 0,
+      });
+
+      if (!categoryResponse.category) {
+        cancelAndExit();
+      }
+
+      const selectedCategory: TemplateCategory = categoryResponse.category;
+
+      // Step 2: Template selection within category
+      const categoryTemplates = getTemplatesByCategory(selectedCategory);
+      const templateChoices = categoryTemplates.map((t) => ({
+        title: t.comingSoon
+          ? `${t.display} ${chalk.gray("(Coming Soon)")}`
+          : t.display,
+        value: t.name,
+        description: t.description,
+        disabled: !t.available,
+      }));
+
+      const templateResponse = await prompts({
+        type: "select",
+        name: "template",
+        message: "Which template would you like to use?",
+        choices: templateChoices,
+        initial: 0,
+      });
+
+      if (!templateResponse.template) {
+        cancelAndExit();
+      }
+
+      selectedTemplate = templateResponse.template;
+    }
   }
 
   // Validate template
@@ -190,9 +303,12 @@ export async function createApp(
     packageManager = detectPackageManager();
     debug("Auto-detected package manager:", packageManager);
     console.log(
-      chalk.bold("[" + chalk.blue("i") + "] ") +
-        chalk.gray(`package manager: ${chalk.cyan(packageManager)}\n`),
+      chalk.dim("│  ") +
+        chalk.dim("Using ") +
+        chalk.cyan(packageManager) +
+        chalk.dim(" as package manager"),
     );
+    console.log();
   }
 
   const pmInfo = getPackageManagerInfo(packageManager);
@@ -212,6 +328,15 @@ export async function createApp(
 
   // Check if directory exists
   if (fs.existsSync(projectPath)) {
+    if (nonInteractive) {
+      console.error(
+        chalk.red(
+          `✖ Directory ${projectName} already exists. Remove it or choose a different name.`,
+        ),
+      );
+      process.exit(1);
+    }
+
     debug("Directory already exists, prompting for overwrite");
     const { overwrite } = await prompts({
       type: "confirm",
@@ -223,15 +348,25 @@ export async function createApp(
     });
 
     if (!overwrite) {
-      console.log(chalk.yellow("✖ Operation cancelled."));
-      process.exit(0);
+      cancelAndExit();
     }
 
     await fs.remove(projectPath);
   }
 
-  console.log(`Creating a new Midnight app in ${chalk.green(projectPath)}.\n`);
-  console.log(chalk.gray(`Template: ${chalk.cyan(selectedTemplate)}`));
+  // Dry run mode — show what would be created and exit
+  if (options.dryRun) {
+    displayDryRun(projectName!, selectedTemplate, packageManager, options);
+    return;
+  }
+
+  console.log(
+    chalk.dim("│  ") +
+      `Creating ${chalk.bold(projectName!)} in ${chalk.green(projectPath)}`,
+  );
+  console.log(
+    chalk.dim("│  ") + chalk.dim("Template: ") + chalk.cyan(selectedTemplate),
+  );
   console.log();
 
   // Main creation process
@@ -250,51 +385,241 @@ export async function createApp(
   }
 }
 
-function displayBundledSuccessMessage(projectName: string, pmInfo: any): void {
+function displayBundledSuccessMessage(
+  projectName: string,
+  pmInfo: PackageManagerInfo,
+): void {
   console.log();
-  console.log(chalk.green.bold("━".repeat(60)));
-  console.log(chalk.green.bold("🎉 Success! Your Midnight app is ready."));
-  console.log(chalk.green.bold("━".repeat(60)));
-  console.log();
-  console.log(chalk.white.bold("📂 Project created at:"));
-  console.log(`   ${chalk.cyan(projectName)}`);
-  console.log();
-  console.log(chalk.white.bold("🚀 Next Steps:"));
-  console.log();
-  console.log(chalk.yellow("  1.") + " Navigate to your project:");
-  console.log(`     ${chalk.cyan(`cd ${projectName}`)}`);
-  console.log();
-  console.log(chalk.yellow("  2.") + " Setup and deploy your contract:");
-  console.log(`     ${chalk.cyan(`${pmInfo.runCommand} setup`)}`);
-  console.log();
-  console.log(chalk.white.bold("📚 Available Commands:"));
-  console.log();
-  console.log(`  ${chalk.cyan(`${pmInfo.runCommand} setup`)}`);
-  console.log(chalk.gray("    Start proof server, compile, and deploy"));
-  console.log();
-  console.log(`  ${chalk.cyan(`${pmInfo.runCommand} cli`)}`);
-  console.log(chalk.gray("    Interactive CLI to test your contract"));
-  console.log();
-  console.log(`  ${chalk.cyan(`${pmInfo.runCommand} check-balance`)}`);
-  console.log(chalk.gray("    Check your wallet balance"));
-  console.log();
-  console.log(`  ${chalk.cyan(`${pmInfo.runCommand} compile`)}`);
-  console.log(chalk.gray("    Compile Compact contracts"));
-  console.log();
-  console.log(chalk.green.bold("━".repeat(60)));
-  console.log();
-  console.log(chalk.magenta("💡 Tips:"));
+  console.log(chalk.green("◆") + chalk.bold("  Your Midnight app is ready."));
+  console.log(chalk.dim("│"));
+  console.log(chalk.dim("│  ") + chalk.bold("Next steps"));
+  console.log(chalk.dim("│"));
+  console.log(chalk.dim("│  ") + chalk.cyan(`cd ${projectName}`));
+  console.log(chalk.dim("│  ") + chalk.cyan(`${pmInfo.runCommand} setup`));
+  console.log(chalk.dim("│"));
+
+  // Commands note box
+  const commands = [
+    [`${pmInfo.runCommand} setup`, "Proof server, compile, deploy"],
+    [`${pmInfo.runCommand} cli`, "Test your contract"],
+    [`${pmInfo.runCommand} check-balance`, "Check wallet balance"],
+    [`${pmInfo.runCommand} compile`, "Compile Compact contracts"],
+  ];
+
+  const maxCmdLen = Math.max(...commands.map(([c]) => c.length));
+  const maxDescLen = Math.max(...commands.map(([, d]) => d.length));
+  // 2 left pad + cmd + 2 min gap + desc + 2 right pad
+  const boxWidth = maxCmdLen + maxDescLen + 6;
+  const bar = "─".repeat(boxWidth);
+
+  console.log(chalk.dim("│  ") + chalk.dim(`╭${bar}╮`));
   console.log(
-    chalk.gray("   • Make sure Docker Desktop is running before setup"),
+    chalk.dim("│  ") +
+      chalk.dim("│") +
+      chalk.bold("  Commands") +
+      " ".repeat(boxWidth - 10) +
+      chalk.dim("│"),
+  );
+  console.log(chalk.dim("│  ") + chalk.dim(`│${" ".repeat(boxWidth)}│`));
+
+  for (const [cmd, desc] of commands) {
+    const cmdPad = " ".repeat(maxCmdLen - cmd.length + 2);
+    const descPad = " ".repeat(maxDescLen - desc.length + 2);
+    console.log(
+      chalk.dim("│  ") +
+        chalk.dim("│") +
+        `  ${chalk.cyan(cmd)}` +
+        cmdPad +
+        chalk.dim(desc) +
+        descPad +
+        chalk.dim("│"),
+    );
+  }
+
+  console.log(chalk.dim("│  ") + chalk.dim(`│${" ".repeat(boxWidth)}│`));
+  console.log(chalk.dim("│  ") + chalk.dim(`╰${bar}╯`));
+  console.log(chalk.dim("│"));
+  console.log(
+    chalk.dim("│  ") + chalk.dim("Ensure Docker is running before setup"),
   );
   console.log(
-    chalk.gray("   • Your wallet seed will be generated during deployment"),
+    chalk.dim("│  ") +
+      chalk.dim("Docs: ") +
+      chalk.cyan.underline("https://docs.midnight.network"),
   );
+  console.log(chalk.dim("│"));
+  console.log(chalk.dim("└  ") + "Happy coding!");
+  console.log();
+}
+
+function displayDryRun(
+  projectName: string,
+  templateName: string,
+  packageManager: PackageManager,
+  options: CreateAppOptions,
+): void {
+  const template = getTemplate(templateName);
+  if (!template) return;
+
+  const pmInfo = getPackageManagerInfo(packageManager);
+
+  console.log();
   console.log(
-    chalk.gray("   • Visit https://docs.midnight.network for documentation"),
+    chalk.yellow("◆") +
+      chalk.bold(
+        `  Dry run: ${chalk.cyan(projectName)} with ${chalk.cyan(templateName)}`,
+      ),
+  );
+  console.log(chalk.dim("│"));
+
+  if (template.type === "bundled") {
+    const templatePath = path.join(__dirname, "../templates", template.name);
+    if (fs.existsSync(templatePath)) {
+      console.log(chalk.dim("│  ") + chalk.bold(`${projectName}/`));
+      displayFileTree(templatePath, chalk.dim("│  "));
+    }
+
+    console.log(chalk.dim("│"));
+    console.log(chalk.dim("│  ") + chalk.bold("Steps that would run"));
+    const steps = [];
+    if (!options.skipInstall)
+      steps.push(`Install dependencies (${pmInfo.installCommand})`);
+    if (!options.skipGit) steps.push("Initialize git repository");
+    steps.push("Check Docker availability");
+    if (!options.skipInstall)
+      steps.push(`Compile contract (${pmInfo.runCommand} compile)`);
+    steps.forEach((s, i) =>
+      console.log(chalk.dim("│  ") + chalk.dim(`${i + 1}. ${s}`)),
+    );
+  } else {
+    console.log(
+      chalk.dim("│  ") +
+        chalk.dim("Source: ") +
+        chalk.cyan(`https://github.com/${template.repo}`),
+    );
+
+    if (template.projectStructure) {
+      console.log(chalk.dim("│"));
+      console.log(chalk.dim("│  ") + chalk.bold(`${projectName}/`));
+      template.projectStructure.forEach((line) => {
+        console.log(chalk.dim("│    ") + chalk.dim(line));
+      });
+    }
+
+    console.log(chalk.dim("│"));
+    console.log(chalk.dim("│  ") + chalk.bold("Steps that would run"));
+    console.log(
+      chalk.dim("│  ") +
+        chalk.dim("1. Check requirements (Node, Docker, Compact)"),
+    );
+    console.log(chalk.dim("│  ") + chalk.dim(`2. Clone from ${template.repo}`));
+    if (!options.skipGit)
+      console.log(chalk.dim("│  ") + chalk.dim("3. Initialize git repository"));
+  }
+
+  console.log(chalk.dim("│"));
+  console.log(
+    chalk.dim("└  ") + chalk.yellow("No files were created (dry run mode)."),
   );
   console.log();
-  console.log(chalk.white("Happy coding! ") + chalk.yellow("🌙✨"));
+}
+
+function displayFileTree(dirPath: string, gutterPrefix: string): void {
+  const files = fs.readdirSync(dirPath, { withFileTypes: true });
+  files.forEach((file, i) => {
+    const isLast = i === files.length - 1;
+    const prefix = isLast ? "└── " : "├── ";
+    let displayName = file.name;
+
+    if (displayName === "_gitignore") displayName = ".gitignore";
+    if (displayName.endsWith(".template"))
+      displayName = displayName.replace(".template", "");
+
+    console.log(gutterPrefix + chalk.dim(`${prefix}${displayName}`));
+
+    if (file.isDirectory()) {
+      const childPrefix = gutterPrefix + (isLast ? "    " : "│   ");
+      displayFileTree(path.join(dirPath, file.name), childPrefix);
+    }
+  });
+}
+
+async function createFromCustomRepo(
+  projectName: string,
+  options: CreateAppOptions,
+): Promise<void> {
+  const projectPath = path.resolve(projectName);
+
+  // Check if directory already exists
+  if (fs.existsSync(projectPath)) {
+    console.error(
+      chalk.red(
+        `✖ Directory ${projectName} already exists. Remove it or choose a different name.`,
+      ),
+    );
+    process.exit(1);
+  }
+
+  // Dry run mode for --from
+  if (options.dryRun) {
+    console.log();
+    console.log(
+      chalk.yellow("◆") +
+        chalk.bold(
+          `  Dry run: ${chalk.cyan(projectName)} from ${chalk.cyan(options.from)}`,
+        ),
+    );
+    console.log(chalk.dim("│"));
+    console.log(
+      chalk.dim("│  ") +
+        chalk.dim("Source: ") +
+        chalk.cyan(`https://github.com/${options.from}`),
+    );
+    console.log(chalk.dim("│"));
+    console.log(chalk.dim("│  ") + chalk.bold("Steps that would run"));
+    console.log(
+      chalk.dim("│  ") + chalk.dim(`1. Clone from ${options.from}`),
+    );
+    if (!options.skipGit)
+      console.log(
+        chalk.dim("│  ") + chalk.dim("2. Initialize git repository"),
+      );
+    console.log(chalk.dim("│"));
+    console.log(
+      chalk.dim("└  ") + chalk.yellow("No files were created (dry run mode)."),
+    );
+    console.log();
+    return;
+  }
+
+  console.log(
+    `Creating project from ${chalk.cyan(options.from)} in ${chalk.green(projectPath)}.\n`,
+  );
+
+  // Clone repository (git clone creates the directory)
+  const cloneSpinner = ora(`Cloning from ${options.from}...`).start();
+  try {
+    await GitCloner.clone(options.from!, projectPath);
+    cloneSpinner.succeed(`Cloned ${options.from}`);
+  } catch (error) {
+    cloneSpinner.fail("Failed to clone repository");
+    throw error;
+  }
+
+  await initGitRepo(projectPath, !!options.skipGit);
+
+  console.log();
+  console.log(
+    chalk.green("◆") +
+      chalk.bold(`  Project created from ${chalk.cyan(options.from)}`),
+  );
+  console.log(chalk.dim("│"));
+  console.log(chalk.dim("│  ") + chalk.bold("Next steps"));
+  console.log(chalk.dim("│"));
+  console.log(chalk.dim("│  ") + chalk.cyan(`cd ${projectName}`));
+  console.log(chalk.dim("│  ") + chalk.dim("Follow the project's README.md"));
+  console.log(chalk.dim("│"));
+  console.log(chalk.dim("└"));
   console.log();
 }
 
@@ -305,7 +630,6 @@ async function createProject(
   packageManager: PackageManager,
   options: CreateAppOptions,
 ): Promise<void> {
-  const pmInfo = getPackageManagerInfo(packageManager);
   const template = getTemplate(templateName);
 
   if (!template) {
@@ -314,7 +638,6 @@ async function createProject(
 
   // Create project directory
   await fs.ensureDir(projectPath);
-  process.chdir(projectPath);
 
   // Handle different template types
   if (template.type === "remote") {
@@ -339,12 +662,10 @@ async function createProject(
 async function createRemoteTemplate(
   projectPath: string,
   projectName: string,
-  template: any,
+  template: Template,
   packageManager: PackageManager,
   options: CreateAppOptions,
 ): Promise<void> {
-  const pmInfo = getPackageManagerInfo(packageManager);
-
   // Check requirements before cloning
   if (template.requiresCompactCompiler || template.nodeVersion) {
     const checks = [];
@@ -432,16 +753,7 @@ async function createRemoteTemplate(
     throw error;
   }
 
-  // Initialize git (since we removed .git from cloned repo)
-  if (!options.skipGit) {
-    const gitSpinner = ora("Initializing git repository...").start();
-    try {
-      await GitUtils.init(projectPath);
-      gitSpinner.succeed("Git repository initialized");
-    } catch (error) {
-      gitSpinner.warn("Git repository initialization skipped");
-    }
-  }
+  await initGitRepo(projectPath, !!options.skipGit);
 
   // Display setup instructions
   SetupGuide.getInstructions(template.name, projectName, packageManager);
@@ -450,7 +762,7 @@ async function createRemoteTemplate(
 async function createBundledTemplate(
   projectPath: string,
   projectName: string,
-  template: any,
+  template: Template,
   packageManager: PackageManager,
   options: CreateAppOptions,
 ): Promise<void> {
@@ -476,7 +788,7 @@ async function createBundledTemplate(
       const installer = new PackageInstaller(packageManager);
       await installer.install(projectPath);
       installSpinner.succeed("Dependencies installed");
-    } catch (error) {
+    } catch (_error) {
       installSpinner.fail("Failed to install dependencies");
       console.log(
         chalk.yellow("\n⚠ You can install dependencies manually by running:"),
@@ -485,16 +797,7 @@ async function createBundledTemplate(
     }
   }
 
-  // Initialize git
-  if (!options.skipGit) {
-    const gitSpinner = ora("Initializing git repository...").start();
-    try {
-      await GitUtils.init(projectPath);
-      gitSpinner.succeed("Git repository initialized");
-    } catch (error) {
-      gitSpinner.warn("Git repository initialization skipped");
-    }
-  }
+  await initGitRepo(projectPath, !!options.skipGit);
 
   // Check Docker for proof server
   const proofSpinner = ora("Checking Docker for proof server...").start();
@@ -508,7 +811,7 @@ async function createBundledTemplate(
         "Docker not available - install it to use proof server",
       );
     }
-  } catch (error) {
+  } catch (_error) {
     proofSpinner.warn(
       "Docker check failed - install Docker to use proof server",
     );
@@ -521,7 +824,7 @@ async function createBundledTemplate(
       const installer = new PackageInstaller(packageManager);
       await installer.runScript(projectPath, "compile");
       compileSpinner.succeed("Contract compiled successfully");
-    } catch (error) {
+    } catch (_error) {
       compileSpinner.warn(
         `Contract compilation skipped - run "${pmInfo.runCommand} compile" manually`,
       );

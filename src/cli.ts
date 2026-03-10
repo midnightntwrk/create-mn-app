@@ -18,6 +18,7 @@ import chalk from "chalk";
 import updateNotifier from "update-notifier";
 import { createApp } from "./create-app";
 import { ErrorHandler } from "./utils/error-handler";
+import { listTemplates } from "./utils/templates";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -51,10 +52,25 @@ program
   .option("--skip-install", "Skip package installation")
   .option("--skip-git", "Skip git repository initialization")
   .option("--verbose", "Show detailed output")
+  .option("--list", "List all available templates")
+  .option("-y, --yes", "Accept all defaults (non-interactive mode)")
+  .option("--dry-run", "Preview what will be created without writing files")
+  .option(
+    "--from <repo>",
+    "Create from a custom GitHub repository (e.g., user/repo)",
+  )
   .action(async (projectDirectory, options) => {
+    console.log();
     console.log(
-      chalk.bold.cyan("\ncreate-mn-app") + chalk.gray(` v${pkg.version}\n`),
+      chalk.bgCyan(chalk.black(" create-mn-app ")) +
+        chalk.dim(` v${pkg.version}`),
     );
+    console.log();
+
+    if (options.list) {
+      listTemplates();
+      return;
+    }
 
     try {
       await createApp(projectDirectory, options);

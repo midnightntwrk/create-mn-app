@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Template categorization** — templates organized into `contract`, `dapp`, and `connector` categories
+- **Two-step interactive selection** — category → template flow with "Coming Soon" indicators
+- **`--list` flag** — list all templates grouped by category
+- **`-y, --yes` flag** — non-interactive mode; also auto-detected via `CI` and `GITHUB_ACTIONS` env vars
+- **`--dry-run` flag** — preview project structure and steps without writing files
+- **`--from <owner/repo>` flag** — create project from any custom GitHub repository
+- **Data-driven SetupGuide** — setup steps defined in template metadata, no more per-template methods
+- **Vitest test suite** — 39 unit tests covering validation, templates, package-manager, error-handler, and template-manager
+- **ESLint + Prettier** — flat config with TypeScript support, format checking
+- **Dependabot** — weekly npm and GitHub Actions dependency updates
+- **Git clone retry logic** — 3 attempts with exponential backoff, partial cleanup between retries
+
+### Changed
+
+- **CLI aesthetics redesign** — clack-inspired gutter bar (`│`), geometric Unicode symbols (`◆ ◇ ● ▲`), note boxes with box-drawing characters, consistent color semantics (green=done, cyan=commands, dim=secondary), branded intro banner
+- **SetupGuide rewritten** — now reads `setupSteps` and `projectStructure` from template definitions (scalable for new templates)
+- **CI updated** — actions/checkout and setup-node upgraded to v4, added npm caching, lint + format steps, Node 23.x matrix
+- **Compact compiler version** updated to 0.28.0 for counter and bboard templates
+- README updated with new CLI flags, template categories, and CI/non-interactive documentation
+
+### Fixed
+
+- **Security: command injection in git-cloner** — repo and branch params now validated against allowlist patterns, all shell args quoted
+- **DRY: duplicated git init** — extracted shared `initGitRepo()` helper (was copy-pasted in 3 functions)
+- **DRY: duplicated cancel logic** — extracted `cancelAndExit()` helper (was repeated 4 times)
+- **DRY: duplicated install/run command mapping** — `setup-guide.ts` now uses `getPackageManagerInfo()` instead of reimplementing
+- **Edge case: `--from` skipped project name validation** — now validates before cloning
+- **Edge case: `--from` skipped directory existence check** — now errors if directory already exists
+- **Type safety** — `template: any` → `Template`, `pmInfo: any` → `PackageManagerInfo` in create-app.ts
+- **Removed `process.chdir()`** — eliminated global side effect that hurt testability
+- **Removed stale `templates/oz-fungible-token/`** — unregistered template directory deleted
+- **Removed unused imports** in `git-utils.ts` and `package-installer.ts`
+
 ## [0.3.19] - 2026-02-19
 
 ### Added

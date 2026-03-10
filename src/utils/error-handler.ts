@@ -28,15 +28,15 @@ export class ErrorHandler {
       console.error(chalk.red.bold("\n✖ Node.js Version Error\n"));
       console.error(
         chalk.white(
-          `You are using Node.js ${version}, but this tool requires Node.js ${minVersion} or higher.`
-        )
+          `You are using Node.js ${version}, but this tool requires Node.js ${minVersion} or higher.`,
+        ),
       );
       console.error();
       console.error(chalk.yellow("📖 How to fix:"));
       console.error(
         chalk.gray(
-          "   1. Visit https://nodejs.org/ to download the latest version"
-        )
+          "   1. Visit https://nodejs.org/ to download the latest version",
+        ),
       );
       console.error(chalk.gray("   2. Or use nvm: nvm install --lts"));
       console.error(chalk.gray("   3. Then run this command again"));
@@ -87,15 +87,15 @@ export class ErrorHandler {
       console.error(chalk.gray("   • Try running with sudo (not recommended)"));
       console.error(
         chalk.gray(
-          "   • Fix npm permissions: https://docs.npmjs.com/resolving-eacces-permissions-errors"
-        )
+          "   • Fix npm permissions: https://docs.npmjs.com/resolving-eacces-permissions-errors",
+        ),
       );
       console.error(chalk.gray("   • Use a version manager like nvm"));
     } else if (errorMsg.includes("enoent") || errorMsg.includes("not found")) {
       console.error(chalk.gray("   • Check if the file or command exists"));
       console.error(chalk.gray("   • Verify your PATH environment variable"));
       console.error(
-        chalk.gray("   • Try reinstalling the required dependencies")
+        chalk.gray("   • Try reinstalling the required dependencies"),
       );
     } else if (errorMsg.includes("network") || errorMsg.includes("timeout")) {
       console.error(chalk.gray("   • Check your internet connection"));
@@ -103,7 +103,7 @@ export class ErrorHandler {
       console.error(chalk.gray("   • Check if npm registry is accessible"));
     } else if (errorMsg.includes("compile") || errorMsg.includes("syntax")) {
       console.error(
-        chalk.gray("   • Check for typos in your Compact contracts")
+        chalk.gray("   • Check for typos in your Compact contracts"),
       );
       console.error(chalk.gray("   • Verify contract syntax is valid"));
       console.error(chalk.gray("   • Review Compact documentation"));
@@ -113,13 +113,13 @@ export class ErrorHandler {
       console.error(chalk.gray("   • Check Docker service status"));
     } else {
       console.error(
-        chalk.gray("   • Check the error message above for details")
+        chalk.gray("   • Check the error message above for details"),
       );
       console.error(
-        chalk.gray("   • Try running with --verbose for more information")
+        chalk.gray("   • Try running with --verbose for more information"),
       );
       console.error(
-        chalk.gray("   • Visit https://docs.midnight.network for help")
+        chalk.gray("   • Visit https://docs.midnight.network for help"),
       );
     }
 
