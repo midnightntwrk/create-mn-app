@@ -577,13 +577,9 @@ async function createFromCustomRepo(
     );
     console.log(chalk.dim("│"));
     console.log(chalk.dim("│  ") + chalk.bold("Steps that would run"));
-    console.log(
-      chalk.dim("│  ") + chalk.dim(`1. Clone from ${options.from}`),
-    );
+    console.log(chalk.dim("│  ") + chalk.dim(`1. Clone from ${options.from}`));
     if (!options.skipGit)
-      console.log(
-        chalk.dim("│  ") + chalk.dim("2. Initialize git repository"),
-      );
+      console.log(chalk.dim("│  ") + chalk.dim("2. Initialize git repository"));
     console.log(chalk.dim("│"));
     console.log(
       chalk.dim("└  ") + chalk.yellow("No files were created (dry run mode)."),
