@@ -62,7 +62,7 @@ const packageManagers: Record<PackageManager, PackageManagerInfo> = {
  * Detect package manager from current directory lockfiles
  */
 export function detectPackageManager(
-  cwd: string = process.cwd()
+  cwd: string = process.cwd(),
 ): PackageManager {
   // Check for lockfiles in current directory
   for (const [pm, info] of Object.entries(packageManagers)) {

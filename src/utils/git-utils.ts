@@ -14,8 +14,6 @@
 // limitations under the License.
 
 import { spawn } from "cross-spawn";
-import fs from "fs-extra";
-import path from "path";
 
 export class GitUtils {
   static async init(projectPath: string): Promise<void> {
@@ -50,7 +48,7 @@ export class GitUtils {
 
   private static async runGitCommand(
     cwd: string,
-    args: string[]
+    args: string[],
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const child = spawn("git", args, {

@@ -14,7 +14,6 @@
 // limitations under the License.
 
 import { spawn } from "cross-spawn";
-import path from "path";
 
 export class PackageInstaller {
   constructor(private packageManager: "npm" | "yarn" | "pnpm" | "bun") {}
@@ -41,8 +40,8 @@ export class PackageInstaller {
         } else {
           reject(
             new Error(
-              `Package installation failed with code ${code}:\n${output}`
-            )
+              `Package installation failed with code ${code}:\n${output}`,
+            ),
           );
         }
       });

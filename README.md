@@ -10,7 +10,7 @@ Scaffold Midnight Network applications on Preprod.
 ## Quick Start
 
 ```bash
-npx create-mn-app my-app
+npx create-mn-app@latest my-app
 cd my-app
 npm run setup
 ```
@@ -33,71 +33,85 @@ The `setup` command:
 
 ## Templates
 
-### Hello World (Default)
-
-Basic message storage contract demonstrating state management.
+Templates are organized by category. The interactive flow guides you through category → template selection.
 
 ```bash
-npx create-mn-app my-app
+npx create-mn-app@latest my-app         # interactive: pick category then template
+npx create-mn-app@latest my-app --list  # list all templates grouped by category
+```
+
+### Contract
+
+| Template | Description |
+| -------- | ----------- |
+| `hello-world` (default) | Basic message storage contract demonstrating state management |
+
+```bash
+npx create-mn-app@latest my-app
 cd my-app
 npm run setup     # starts proof server, compiles, deploys
 npm run cli       # interact with deployed contract
 ```
 
-### Counter
+### Full DApp
 
-Increment/decrement counter with zkProofs. Cloned from [midnightntwrk/example-counter](https://github.com/midnightntwrk/example-counter).
-
-```bash
-npx create-mn-app my-app --template counter
-cd my-app
-npm install
-# follow displayed instructions
-```
-
-Requires Compact compiler - the CLI will check and offer to install it.
-
-### Bulletin Board (Bboard)
-
-Multi-user bulletin board with privacy patterns. Includes CLI and Web UI. Cloned from [midnightntwrk/example-bboard](https://github.com/midnightntwrk/example-bboard).
+| Template | Description |
+| -------- | ----------- |
+| `counter` | Increment/decrement app with zkProofs ([source](https://github.com/midnightntwrk/example-counter)) |
+| `bboard` | Multi-user bulletin board with privacy patterns ([source](https://github.com/midnightntwrk/example-bboard)) |
+| `dex` | Decentralized exchange using FungibleToken *(coming soon)* |
+| `midnight-kitties` | NFT-based full stack DApp *(coming soon)* |
 
 ```bash
-npx create-mn-app my-app --template bboard
-cd my-app
-npm install
-# follow displayed instructions
+npx create-mn-app@latest my-app --template counter
+npx create-mn-app@latest my-app --template bboard
 ```
 
-Requires Compact compiler and Lace wallet extension (for Web UI).
+Requires Compact compiler — the CLI will check and offer to install it.
 
-### Coming Soon
+### Connector
 
-- DEX - Decentralized exchange using FungibleToken
-- Midnight Kitties - NFT-based full stack DApp
+Integration examples and patterns *(coming soon)*.
 
 ## Requirements
 
-| Requirement      | Version | Notes                                        |
-| ---------------- | ------- | -------------------------------------------- |
-| Node.js          | 22+     | Required for all templates                   |
-| Docker           | Latest  | Runs proof server                            |
-| Compact Compiler | 0.23.0+ | Counter template only (auto-install offered) |
+| Requirement      | Version | Notes                                              |
+| ---------------- | ------- | -------------------------------------------------- |
+| Node.js          | 22+     | Required for all templates                         |
+| Docker           | Latest  | Runs proof server                                  |
+| Compact Compiler | 0.28.0+ | Counter and Bboard templates (auto-install offered)|
 
 ## CLI Options
 
 ```bash
-npx create-mn-app [project-name] [options]
+npx create-mn-app@latest [project-name] [options]
 ```
 
-| Option                    | Description                        |
-| ------------------------- | ---------------------------------- |
-| `-t, --template <name>`   | Template: `hello-world`, `counter` |
-| `--use-npm/yarn/pnpm/bun` | Force package manager              |
-| `--skip-install`          | Skip dependency installation       |
-| `--skip-git`              | Skip git initialization            |
-| `--verbose`               | Show detailed output               |
-| `-h, --help`              | Show help                          |
-| `-V, --version`           | Show version                       |
+| Option                    | Description                                          |
+| ------------------------- | ---------------------------------------------------- |
+| `-t, --template <name>`   | Template: `hello-world`, `counter`, `bboard`        |
+| `--list`                  | List all available templates grouped by category     |
+| `-y, --yes`               | Accept all defaults (non-interactive mode)           |
+| `--dry-run`               | Preview what will be created without writing files   |
+| `--from <owner/repo>`     | Create from a custom GitHub repository               |
+| `--use-npm/yarn/pnpm/bun` | Force package manager                               |
+| `--skip-install`          | Skip dependency installation                         |
+| `--skip-git`              | Skip git initialization                              |
+| `--verbose`               | Show detailed output                                 |
+| `-h, --help`              | Show help                                            |
+| `-V, --version`           | Show version                                         |
+
+### Non-Interactive / CI Mode
+
+Use `-y` or set `CI=true` / `GITHUB_ACTIONS=true` to skip all prompts:
+
+```bash
+npx create-mn-app@latest my-app -y -t counter    # defaults, no prompts
+CI=true npx create-mn-app@latest my-app           # auto-detected in CI
+
+npx create-mn-app@latest my-app --dry-run         # preview without writing files
+npx create-mn-app@latest my-app --from user/repo  # clone any GitHub repo
+```
 
 ## Project Structure
 

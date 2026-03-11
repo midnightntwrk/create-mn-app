@@ -58,21 +58,21 @@ export class CompactUpdater {
    */
   static async promptUpdate(
     currentVersion: string,
-    requiredVersion: string
+    requiredVersion: string,
   ): Promise<boolean> {
     console.log(
       chalk.yellow(
         `\n⚠️  Your Compact compiler version ${chalk.bold(
-          currentVersion
-        )} is outdated.`
-      )
+          currentVersion,
+        )} is outdated.`,
+      ),
     );
     console.log(
       chalk.yellow(
         `   This template requires version ${chalk.bold(
-          requiredVersion
-        )}+ to work correctly.\n`
-      )
+          requiredVersion,
+        )}+ to work correctly.\n`,
+      ),
     );
 
     const response = await prompts({
@@ -108,7 +108,7 @@ export class CompactUpdater {
         const output = data.toString().trim();
         if (output) {
           spinner.text = `Updating Compact compiler... ${chalk.gray(
-            output.slice(0, 60)
+            output.slice(0, 60),
           )}`;
         }
       });
@@ -118,7 +118,7 @@ export class CompactUpdater {
         if (error && !error.includes("Downloading")) {
           hasError = true;
           spinner.fail(
-            `Failed to update Compact compiler: ${chalk.red(error)}`
+            `Failed to update Compact compiler: ${chalk.red(error)}`,
           );
         }
       });
@@ -130,8 +130,8 @@ export class CompactUpdater {
           if (newVersion) {
             spinner.succeed(
               `Compact compiler updated successfully to version ${chalk.green(
-                newVersion
-              )}`
+                newVersion,
+              )}`,
             );
             resolve(true);
           } else {
@@ -141,7 +141,7 @@ export class CompactUpdater {
         } else {
           if (!hasError) {
             spinner.fail(
-              `Failed to update Compact compiler (exit code: ${code})`
+              `Failed to update Compact compiler (exit code: ${code})`,
             );
           }
           resolve(false);
@@ -160,23 +160,23 @@ export class CompactUpdater {
    */
   static async handleVersionMismatch(
     currentVersion: string,
-    requiredVersion: string
+    requiredVersion: string,
   ): Promise<boolean> {
     const shouldUpdate = await this.promptUpdate(
       currentVersion,
-      requiredVersion
+      requiredVersion,
     );
 
     if (!shouldUpdate) {
       console.log(
         chalk.yellow(
-          `\n⚠️  Skipping update. You can update manually later with:`
-        )
+          `\n⚠️  Skipping update. You can update manually later with:`,
+        ),
       );
       console.log(
         chalk.gray(
-          `   curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh\n`
-        )
+          `   curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh\n`,
+        ),
       );
       return false;
     }
@@ -186,8 +186,8 @@ export class CompactUpdater {
     if (!updateSuccess) {
       console.log(
         chalk.red(
-          `\n❌ Update failed. Please try updating manually or check your internet connection.\n`
-        )
+          `\n❌ Update failed. Please try updating manually or check your internet connection.\n`,
+        ),
       );
       return false;
     }
@@ -200,8 +200,8 @@ export class CompactUpdater {
     } else {
       console.log(
         chalk.yellow(
-          `\n⚠️  Update completed, but version may still need manual verification.\n`
-        )
+          `\n⚠️  Update completed, but version may still need manual verification.\n`,
+        ),
       );
       return false;
     }

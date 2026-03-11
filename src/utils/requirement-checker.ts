@@ -153,7 +153,7 @@ export class RequirementChecker {
     if (!allPassed) {
       console.log();
       console.log(
-        chalk.bold("[" + chalk.yellow("!") + "] Missing Dependencies\n")
+        chalk.bold("[" + chalk.yellow("!") + "] Missing Dependencies\n"),
       );
 
       for (const check of checks.filter((c) => !c.found)) {

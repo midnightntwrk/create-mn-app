@@ -1,6 +1,6 @@
 {
   "name": "create-mn-app",
-  "version": "0.3.19",
+  "version": "0.3.22",
   "description": "Create Midnight Network applications with zero configuration",
   "main": "dist/index.js",
   "bin": {
@@ -15,9 +15,16 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
-    "test": "npm run build && node dist/test.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:smoke": "npm run build && node dist/test.js",
     "test-local": "npm run build && npm link && npx create-mn-app test-app",
-    "clean": "rm -rf dist test-app"
+    "clean": "rm -rf dist test-app",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
   },
   "keywords": [
     "midnight",
@@ -59,7 +66,14 @@
     "@types/prompts": "^2.4.9",
     "@types/update-notifier": "^6.0.8",
     "@types/validate-npm-package-name": "^4.0.2",
-    "typescript": "^5.0.0"
+    "@typescript-eslint/eslint-plugin": "^8.57.0",
+    "@typescript-eslint/parser": "^8.57.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.1",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=22.0.0"

@@ -14,19 +14,28 @@
 // limitations under the License.
 
 import chalk from "chalk";
-import { getTemplate } from "./templates.js";
-import type { PackageManager } from "./package-manager.js";
+import { getTemplate, type Template } from "./templates.js";
+import {
+  getPackageManagerInfo,
+  type PackageManager,
+} from "./package-manager.js";
 
-export interface SetupStep {
-  title: string;
-  commands: string[];
-  cwd?: string;
-  optional?: boolean;
+function resolveCommand(
+  cmd: string,
+  projectName: string,
+  pm: PackageManager,
+): string {
+  const pmInfo = getPackageManagerInfo(pm);
+
+  return cmd
+    .replace(/\{\{projectName\}\}/g, projectName)
+    .replace(/\{\{installCmd\}\}/g, pmInfo.installCommand)
+    .replace(/\{\{runCmd\}\}/g, pmInfo.runCommand);
 }
 
 export class SetupGuide {
   /**
-   * Get setup instructions for a template
+   * Display setup instructions for a template (data-driven)
    */
   static getInstructions(
     templateName: string,
@@ -36,156 +45,64 @@ export class SetupGuide {
     const template = getTemplate(templateName);
     if (!template || template.type !== "remote") return;
 
-    console.log(chalk.bold("\n[" + chalk.blue("→") + "] Next Steps\n"));
+    console.log();
+    console.log(chalk.green("◇") + chalk.bold("  Next steps"));
+    console.log(chalk.dim("│"));
 
-    if (templateName === "counter") {
-      this.displayCounterInstructions(projectName, packageManager);
-    } else if (templateName === "bboard") {
-      this.displayBboardInstructions(projectName, packageManager);
+    // Display project structure if defined
+    if (template.projectStructure && template.projectStructure.length > 0) {
+      console.log(chalk.dim("│  ") + chalk.bold("Project structure"));
+      for (const line of template.projectStructure) {
+        console.log(chalk.dim("│  ") + chalk.dim(line));
+      }
+      console.log(chalk.dim("│"));
     }
-  }
 
-  /**
-   * Display Counter template instructions
-   */
-  private static displayCounterInstructions(
-    projectName: string,
-    pm: PackageManager,
-  ): void {
-    const installCmd =
-      pm === "npm"
-        ? "npm install"
-        : pm === "yarn"
-          ? "yarn"
-          : pm === "pnpm"
-            ? "pnpm install"
-            : "bun install";
-    const runCmd = pm === "npm" ? "npm run" : pm;
+    // Display setup steps if defined
+    if (template.setupSteps) {
+      this.displaySteps(template, projectName, packageManager);
+    }
 
-    console.log(chalk.gray("    project structure:"));
-    console.log(chalk.gray("    ├─ contract/     smart contract (compact)"));
-    console.log(chalk.gray("    └─ counter-cli/  cli interface"));
-    console.log();
-
-    console.log(chalk.gray("    $ ") + chalk.cyan(`cd ${projectName}`));
-    console.log(chalk.gray("    $ ") + chalk.cyan(installCmd));
-    console.log(
-      chalk.gray("    $ ") + chalk.cyan(`cd contract && ${runCmd} compact`),
-    );
-    console.log(
-      chalk.gray("      (downloads ~500MB zk parameters on first run)"),
-    );
-    console.log(chalk.gray("    $ ") + chalk.cyan(`${runCmd} build`));
-    console.log(
-      chalk.gray("    $ ") + chalk.cyan(`cd ../counter-cli && ${runCmd} build`),
-    );
-    console.log();
-
-    console.log(chalk.bold("[" + chalk.magenta("i") + "] Proof Server\n"));
-    console.log(
-      chalk.gray("    $ ") +
-        chalk.cyan(
-          "docker run -d -p 6300:6300 -e PORT=6300 midnightntwrk/proof-server:7.0.0",
-        ),
-    );
-    console.log(chalk.gray("      (runs in background)"));
-    console.log();
-
-    console.log(chalk.bold("[" + chalk.green("▶") + "] Run Application\n"));
-    console.log(
-      chalk.gray("    $ ") + chalk.cyan(`cd counter-cli && ${runCmd} start`),
-    );
-    console.log();
-
-    console.log(chalk.bold("[" + chalk.yellow("!") + "] Important\n"));
-    console.log(chalk.gray("    • create wallet and fund from faucet"));
-    console.log(
-      chalk.gray(
-        "    • Preprod faucet: https://faucet.preprod.midnight.network/",
-      ),
-    );
-    console.log(chalk.gray("    • funding takes 2-3 minutes"));
-    console.log(chalk.gray("    • see README.md for detailed guide"));
+    console.log(chalk.dim("└"));
     console.log();
   }
 
   /**
-   * Display Bboard template instructions
+   * Render setup steps from template metadata
    */
-  private static displayBboardInstructions(
+  private static displaySteps(
+    template: Template,
     projectName: string,
     pm: PackageManager,
   ): void {
-    const installCmd =
-      pm === "npm"
-        ? "npm install"
-        : pm === "yarn"
-          ? "yarn"
-          : pm === "pnpm"
-            ? "pnpm install"
-            : "bun install";
-    const runCmd = pm === "npm" ? "npm run" : pm;
+    if (!template.setupSteps) return;
 
-    console.log(chalk.gray("    project structure:"));
-    console.log(chalk.gray("    ├─ contract/     smart contract (compact)"));
-    console.log(chalk.gray("    ├─ api/          shared api methods"));
-    console.log(chalk.gray("    ├─ bboard-cli/   cli interface"));
-    console.log(chalk.gray("    └─ bboard-ui/    web browser interface"));
-    console.log();
+    template.setupSteps.forEach((step, index) => {
+      const isLast = index === template.setupSteps!.length - 1;
+      const icon = step.commands.length > 0 ? "●" : "▲";
 
-    console.log(chalk.gray("    $ ") + chalk.cyan(`cd ${projectName}`));
-    console.log(chalk.gray("    $ ") + chalk.cyan(installCmd));
-    console.log(
-      chalk.gray("    $ ") + chalk.cyan(`cd api && ${installCmd} && cd ..`),
-    );
-    console.log(
-      chalk.gray("    $ ") + chalk.cyan(`cd contract && ${installCmd}`),
-    );
-    console.log(chalk.gray("    $ ") + chalk.cyan(`${runCmd} compact`));
-    console.log(
-      chalk.gray("      (downloads ~500MB zk parameters on first run)"),
-    );
-    console.log(chalk.gray("    $ ") + chalk.cyan(`${runCmd} build && cd ..`));
-    console.log(
-      chalk.gray("    $ ") +
-        chalk.cyan(`cd bboard-cli && ${installCmd} && ${runCmd} build && cd ..`),
-    );
-    console.log();
+      console.log(
+        chalk.dim("│  ") + chalk.blue(icon) + chalk.bold(` ${step.title}`),
+      );
 
-    console.log(chalk.bold("[" + chalk.magenta("i") + "] Proof Server\n"));
-    console.log(
-      chalk.gray("    $ ") +
-        chalk.cyan(
-          "docker run -d -p 6300:6300 -e PORT=6300 midnightntwrk/proof-server:7.0.0",
-        ),
-    );
-    console.log(chalk.gray("      (runs in background)"));
-    console.log();
+      for (const cmd of step.commands) {
+        const resolved = resolveCommand(cmd, projectName, pm);
+        console.log(chalk.dim("│    ") + chalk.cyan(resolved));
+      }
 
-    console.log(chalk.bold("[" + chalk.green("▶") + "] Run CLI\n"));
-    console.log(
-      chalk.gray("    $ ") + chalk.cyan(`cd bboard-cli && ${runCmd} preprod-remote`),
-    );
-    console.log();
+      if (step.note) {
+        const lines = step.note.split("\n");
+        for (const line of lines) {
+          console.log(chalk.dim("│    ") + chalk.dim(line));
+        }
+      }
 
-    console.log(chalk.bold("[" + chalk.blue("◎") + "] Run Web UI (optional)\n"));
-    console.log(
-      chalk.gray("    $ ") +
-        chalk.cyan(`cd bboard-ui && ${installCmd} && ${runCmd} build:start`),
-    );
-    console.log(chalk.gray("      requires Lace wallet browser extension"));
-    console.log();
+      if (!isLast) {
+        console.log(chalk.dim("│"));
+      }
+    });
 
-    console.log(chalk.bold("[" + chalk.yellow("!") + "] Important\n"));
-    console.log(chalk.gray("    • create wallet and fund from faucet"));
-    console.log(
-      chalk.gray(
-        "    • Preprod faucet: https://faucet.preprod.midnight.network/",
-      ),
-    );
-    console.log(chalk.gray("    • funding takes 2-3 minutes"));
-    console.log(chalk.gray("    • see README.md for detailed guide"));
-    console.log();
+    console.log(chalk.dim("│"));
   }
 
   /**
@@ -195,12 +112,12 @@ export class SetupGuide {
     const template = getTemplate(templateName);
     if (!template) return;
 
-    console.log(chalk.bold("\n[" + chalk.green("✓") + "] Clone Complete\n"));
+    console.log();
+    console.log(chalk.green("◆") + chalk.bold("  Clone complete"));
 
     if (template.requiresCompactCompiler) {
-      console.log(chalk.gray("    compact compiler required"));
-      console.log(chalk.gray("    follow setup instructions below"));
-      console.log();
+      console.log(chalk.dim("│"));
+      console.log(chalk.dim("│  ") + chalk.dim("Compact compiler required"));
     }
   }
 }
