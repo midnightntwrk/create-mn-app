@@ -70,5 +70,4 @@ export class PackageInstaller {
       child.on("error", reject);
     });
   }
-
 }

@@ -84,5 +84,4 @@ export class ErrorHandler {
 
     console.error();
   }
-
 }

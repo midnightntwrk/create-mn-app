@@ -102,11 +102,14 @@ export class CompactUpdater {
     const result = spawnSync(
       "curl",
       [
-        "--proto", "=https",
+        "--proto",
+        "=https",
         "--tlsv1.2",
         "-LSsf",
-        "--max-time", "60",
-        "-o", scriptPath,
+        "--max-time",
+        "60",
+        "-o",
+        scriptPath,
         this.INSTALLER_URL,
       ],
       { stdio: "pipe" },
