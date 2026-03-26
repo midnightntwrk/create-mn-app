@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.24] - 2026-03-24
+
+### Security
+
+- **Seed no longer printed to stdout** — `console.log` of wallet seed removed from deploy script; seed is now written to `.midnight-seed` file with `chmod 600` permissions
+- **Seed removed from `deployment.json`** — deployment metadata no longer contains the wallet seed; only contract address and network info are persisted
+- **`.midnight-seed` added to `.gitignore` template** — prevents accidental commit of seed file from project creation
+
+### Changed
+
+- `cli.ts` and `check-balance.ts` now read seed from `.midnight-seed` file instead of `deployment.json`
+
 ## [0.3.22] - 2026-03-18
 
 ### Added
