@@ -21,6 +21,7 @@ export interface RequirementCheck {
   required: boolean;
   found: boolean;
   version?: string;
+  warning?: string;
   installUrl?: string;
   installCommand?: string;
 }
@@ -83,11 +84,15 @@ export class RequirementChecker {
       // Check version compatibility
       let isCompatible = true;
       let versionWarning = "";
+      let warning: string | undefined;
 
       if (minVersion && currentVersion) {
-        isCompatible = this.compareVersions(currentVersion, minVersion) >= 0;
-        if (!isCompatible) {
+        const cmp = this.compareVersions(currentVersion, minVersion);
+        if (cmp < 0) {
+          isCompatible = false;
           versionWarning = ` (requires ${minVersion}+, found ${currentVersion})`;
+        } else if (cmp > 0) {
+          warning = `Compact compiler ${currentVersion} is newer than this template expects (${minVersion}). This may cause compact-runtime version conflicts. If you see build errors, install compiler version ${minVersion}.`;
         }
       }
 
@@ -96,6 +101,7 @@ export class RequirementChecker {
         required: true,
         found: isCompatible,
         version: currentVersion,
+        warning,
         installCommand:
           "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh",
       };
@@ -136,17 +142,30 @@ export class RequirementChecker {
     console.log(chalk.bold("[" + chalk.cyan("✓") + "] Requirements Check\n"));
 
     let allPassed = true;
+    const warnings: string[] = [];
 
     for (const check of checks) {
       const name = check.name.toLowerCase().padEnd(16);
       if (check.found) {
         const version = check.version ? chalk.gray(`${check.version}`) : "";
-        const status = chalk.green("[installed]");
+        const status = check.warning
+          ? chalk.yellow("[installed]")
+          : chalk.green("[installed]");
         console.log(`    ${chalk.gray(name)} ${version} ${status}`);
+        if (check.warning) {
+          warnings.push(check.warning);
+        }
       } else {
         allPassed = false;
         const status = chalk.red("[missing]");
         console.log(`    ${chalk.gray(name)} ${status}`);
+      }
+    }
+
+    if (warnings.length > 0) {
+      console.log();
+      for (const warning of warnings) {
+        console.log(`    ${chalk.yellow("⚠")} ${chalk.yellow(warning)}`);
       }
     }
 

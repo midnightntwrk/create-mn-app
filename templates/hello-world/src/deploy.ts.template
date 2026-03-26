@@ -196,14 +196,21 @@ async function main() {
   const rl = createInterface({ input: stdin, output: stdout });
 
   try {
-    // Check for existing deployment.json (previous attempt or completed deployment)
+    // Check for existing deployment and seed
     let existingSeed: string | undefined;
     let existingContract: string | undefined;
+
+    if (fs.existsSync('.midnight-seed')) {
+      try {
+        existingSeed = fs.readFileSync('.midnight-seed', 'utf-8').trim();
+      } catch {
+        // Ignore read errors
+      }
+    }
 
     if (fs.existsSync('deployment.json')) {
       try {
         const existing = JSON.parse(fs.readFileSync('deployment.json', 'utf-8'));
-        if (existing.seed) existingSeed = existing.seed;
         if (existing.contractAddress) existingContract = existing.contractAddress;
       } catch {
         // Ignore parse errors
@@ -241,7 +248,10 @@ async function main() {
           : toHex(Buffer.from(generateRandomSeed()));
 
         if (choice.trim() !== '2') {
-          console.log(`\n  ⚠️  SAVE THIS SEED (you'll need it later):\n  ${seed}\n`);
+          fs.writeFileSync('.midnight-seed', seed, { mode: 0o600 });
+          console.log('\n  ⚠️  A new wallet seed has been generated.');
+          console.log('  It has been saved to .midnight-seed (chmod 600).');
+          console.log('  Back it up securely and never commit this file.\n');
         }
       }
     } else {
@@ -251,7 +261,10 @@ async function main() {
         : toHex(Buffer.from(generateRandomSeed()));
 
       if (choice.trim() !== '2') {
-        console.log(`\n  ⚠️  SAVE THIS SEED (you'll need it later):\n  ${seed}\n`);
+        fs.writeFileSync('.midnight-seed', seed, { mode: 0o600 });
+        console.log('\n  ⚠️  A new wallet seed has been generated.');
+        console.log('  It has been saved to .midnight-seed (chmod 600).');
+        console.log('  Back it up securely and never commit this file.\n');
       }
     }
 
@@ -325,9 +338,10 @@ async function main() {
       console.log('  └──────────────────────────────────────────────────────────────┘\n');
 
       // Save seed for retry
-      const partialInfo = { seed, address, network: 'preprod', status: 'proof_server_unavailable' };
+      fs.writeFileSync('.midnight-seed', seed, { mode: 0o600 });
+      const partialInfo = { address, network: 'preprod', status: 'proof_server_unavailable' };
       fs.writeFileSync('deployment.json', JSON.stringify(partialInfo, null, 2));
-      console.log('  Wallet saved to deployment.json\n');
+      console.log('  Wallet saved to .midnight-seed and deployment.json\n');
 
       await walletCtx.wallet.stop();
       process.exit(1);
@@ -371,9 +385,10 @@ async function main() {
           console.log('  │                                                              │');
           console.log('  └──────────────────────────────────────────────────────────────┘\n');
 
-          const partialInfo = { seed, address, network: 'preprod', status: 'proof_server_error' };
+          fs.writeFileSync('.midnight-seed', seed, { mode: 0o600 });
+          const partialInfo = { address, network: 'preprod', status: 'proof_server_error' };
           fs.writeFileSync('deployment.json', JSON.stringify(partialInfo, null, 2));
-          console.log('  Wallet saved to deployment.json\n');
+          console.log('  Wallet saved to .midnight-seed and deployment.json\n');
 
           await walletCtx.wallet.stop();
           process.exit(1);
@@ -414,15 +429,15 @@ async function main() {
             console.log('  └───────────────────────────────────────────────────────────┘\n');
 
             // Save partial deployment info so user can resume
+            fs.writeFileSync('.midnight-seed', seed, { mode: 0o600 });
             const partialInfo = {
-              seed,
               address,
               network: 'preprod',
               status: 'pending_dust',
               lastAttempt: new Date().toISOString(),
             };
             fs.writeFileSync('deployment.json', JSON.stringify(partialInfo, null, 2));
-            console.log('  Wallet saved to deployment.json\n');
+            console.log('  Wallet saved to .midnight-seed and deployment.json\n');
 
             await walletCtx.wallet.stop();
             process.exit(1);
@@ -443,9 +458,9 @@ async function main() {
     console.log(`  Contract Address: ${contractAddress}\n`);
 
     // 5. Save deployment info
+    fs.writeFileSync('.midnight-seed', seed, { mode: 0o600 });
     const deploymentInfo = {
       contractAddress,
-      seed,
       network: 'preprod',
       deployedAt: new Date().toISOString(),
     };

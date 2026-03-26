@@ -89,8 +89,7 @@ export const templates: Template[] = [
         commands: [
           "cd {{projectName}}",
           "{{installCmd}}",
-          "cd contract && {{runCmd}} compact",
-          "{{runCmd}} build",
+          "cd contract && {{runCmd}} compact && {{runCmd}} build",
           "cd ../counter-cli && {{runCmd}} build",
         ],
         note: "downloads ~500MB zk parameters on first run",

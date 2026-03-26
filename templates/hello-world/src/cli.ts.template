@@ -176,8 +176,14 @@ async function main() {
 
   try {
     // Create wallet from saved seed
+    if (!fs.existsSync('.midnight-seed')) {
+      console.error('❌ No .midnight-seed file found! Run: npm run deploy\n');
+      process.exit(1);
+    }
+    const seed = fs.readFileSync('.midnight-seed', 'utf-8').trim();
+
     console.log('  Connecting to wallet...');
-    const walletCtx = await createWallet(deployment.seed);
+    const walletCtx = await createWallet(seed);
 
     console.log('  Syncing with network...');
     const state = await Rx.firstValueFrom(walletCtx.wallet.state().pipe(Rx.throttleTime(5000), Rx.filter((s) => s.isSynced)));
