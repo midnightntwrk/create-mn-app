@@ -7,3 +7,25 @@ services:
     ports:
       - "6300:6300"
     restart: unless-stopped
+
+  # Readiness gate for the proof-server.
+  # The proof-server image is distroless (no `curl`, no `sh`), so we cannot
+  # define a healthcheck on the proof-server container itself. Instead, this
+  # sidecar polls `/version` from a network peer and flips to `healthy` once
+  # the proof-server responds. Combined with `docker compose up --wait`, this
+  # lets `npm run setup` block until the proof-server is actually serving,
+  # avoiding a race where `npm run deploy` starts too early.
+  proof-server-ready:
+    image: curlimages/curl:8.11.1
+    depends_on:
+      - proof-server
+    command:
+      - sh
+      - -c
+      - "until curl -fs http://proof-server:6300/version; do sleep 1; done; touch /tmp/ready; sleep infinity"
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/ready"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
