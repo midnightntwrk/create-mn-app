@@ -1,6 +1,6 @@
 services:
   proof-server:
-    image: midnightntwrk/proof-server:7.0.0
+    image: midnightntwrk/proof-server:8.0.3
     platform: linux/amd64
     environment:
       - PORT=6300
