@@ -11,6 +11,7 @@
     "setup": "docker compose up -d && npm run compile && npm run deploy",
     "deploy": "npx tsx src/deploy.ts",
     "cli": "npx tsx src/cli.ts",
+    "convert-seed": "npx tsx src/convert-seed.ts",
     "check-balance": "npx tsx src/check-balance.ts",
     "proof-server:start": "docker compose up -d",
     "proof-server:stop": "docker compose down",
@@ -35,6 +36,7 @@
     "@midnight-ntwrk/wallet-sdk-hd": "3.0.1",
     "@midnight-ntwrk/wallet-sdk-shielded": "2.1.0",
     "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "2.1.0",
+    "@scure/bip39": "^2.2.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {

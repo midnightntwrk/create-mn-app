@@ -1,0 +1,61 @@
+/**
+ * convert-seed.ts
+ *
+ * Converts a BIP-39 mnemonic (24 words, from Lace / 1AM) into the
+ * 64-character hex seed that create-mn-app's deploy.ts expects, and
+ * writes it to .midnight-seed so the rest of the scaffold picks it up.
+ *
+ * Usage:
+ *   npx tsx src/convert-seed.ts
+ *
+ * Dependencies (install once if not already present):
+ *   npm install @scure/bip39
+ */
+
+import { createInterface } from 'node:readline/promises';
+import { stdin, stdout } from 'node:process';
+import * as fs from 'node:fs';
+import { mnemonicToSeedSync, validateMnemonic } from '@scure/bip39';
+import { wordlist } from '@scure/bip39/wordlists/english.js';
+
+const rl = createInterface({ input: stdin, output: stdout });
+
+console.log('\n╔══════════════════════════════════════════════════════════════╗');
+console.log('║              BIP-39 Mnemonic → .midnight-seed                ║');
+console.log('╚══════════════════════════════════════════════════════════════╝\n');
+console.log('  Converts a 24-word mnemonic (Lace / 1AM) into the 64-character');
+console.log('  hex seed expected by the create-mn-app scaffold.\n');
+
+const mnemonic = await rl.question('  Enter your 24-word mnemonic: ');
+rl.close();
+
+const trimmed = mnemonic.trim();
+
+if (!validateMnemonic(trimmed, wordlist)) {
+  console.error('\n  ❌ Invalid mnemonic. Check your words and try again.\n');
+  process.exit(1);
+}
+
+// mnemonicToSeedSync produces 64 bytes; take the first 32 (64 hex chars)
+// to match the format the scaffold writes and reads via generateRandomSeed().
+const seedHex = Buffer.from(mnemonicToSeedSync(trimmed)).slice(0, 32).toString('hex');
+
+console.log('\n  ✓ Mnemonic is valid.\n');
+console.log(`  Seed (64 hex chars):\n  ${seedHex}\n`);
+
+const overwrite = fs.existsSync('.midnight-seed')
+  ? await (async () => {
+      const rl2 = createInterface({ input: stdin, output: stdout });
+      const answer = await rl2.question('  .midnight-seed already exists. Overwrite? [y/N] ');
+      rl2.close();
+      return answer.trim().toLowerCase() === 'y';
+    })()
+  : true;
+
+if (overwrite) {
+  fs.writeFileSync('.midnight-seed', seedHex, { mode: 0o600 });
+  console.log('  ✅ Saved to .midnight-seed (chmod 600).\n');
+  console.log('  You can now run:  npm run deploy  (choose "Use saved wallet")\n');
+} else {
+  console.log('\n  Aborted — .midnight-seed was not changed.\n');
+}
