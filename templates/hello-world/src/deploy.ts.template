@@ -131,7 +131,7 @@ async function createWallet(seed: string) {
 }
 
 async function createProviders(walletCtx: ReturnType<typeof createWallet> extends Promise<infer T> ? T : never) {
-  const privateStatePassword = process.env.PRIVATE_STATE_PASSWORD?.trim() || 'development';
+  const privateStatePassword = process.env.PRIVATE_STATE_PASSWORD?.trim() || 'dev!Xk9#mQ2pLw@z';
 
   const state = await walletCtx.wallet.waitForSyncedState();
 
@@ -302,8 +302,7 @@ async function main() {
           walletCtx.unshieldedKeystore.getPublicKey(),
           (payload) => walletCtx.unshieldedKeystore.signData(payload),
         );
-        const signedRecipe = await walletCtx.wallet.signRecipe(recipe, (payload) => walletCtx.unshieldedKeystore.signData(payload));
-        await walletCtx.wallet.submitTransaction(await walletCtx.wallet.finalizeRecipe(signedRecipe));
+        await walletCtx.wallet.submitTransaction(await walletCtx.wallet.finalizeRecipe(recipe));
       }
 
       console.log('  Waiting for DUST tokens...');
