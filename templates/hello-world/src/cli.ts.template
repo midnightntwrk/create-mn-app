@@ -17,29 +17,23 @@ import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-p
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { resolveNetwork, getOrCreateSeed, getDeployment } from './network';
 import * as ledger from '@midnight-ntwrk/ledger-v8';
 import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
 import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
 import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
 import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
 import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
-import { createKeystore, InMemoryTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { createKeystore, NoOpTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
 import { CompiledContract } from '@midnight-ntwrk/compact-js';
 
 // Enable WebSocket for GraphQL subscriptions
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-// Set network to preprod
-setNetworkId('preprod');
-
-// Preprod network configuration
-const CONFIG = {
-  indexer: 'https://indexer.preprod.midnight.network/api/v3/graphql',
-  indexerWS: 'wss://indexer.preprod.midnight.network/api/v3/graphql/ws',
-  node: 'https://rpc.preprod.midnight.network',
-  proofServer: 'http://127.0.0.1:6300',
-};
+const { network, config: networkConfig } = resolveNetwork();
+setNetworkId(networkConfig.networkId);
+const SEED = getOrCreateSeed(network);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
@@ -80,10 +74,10 @@ async function createWallet(seed: string) {
 
   const walletConfig = {
     networkId,
-    indexerClientConnection: { indexerHttpUrl: CONFIG.indexer, indexerWsUrl: CONFIG.indexerWS },
-    provingServerUrl: new URL(CONFIG.proofServer),
-    relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
-    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+    indexerClientConnection: { indexerHttpUrl: networkConfig.indexer, indexerWsUrl: networkConfig.indexerWS },
+    provingServerUrl: new URL(networkConfig.proofServer),
+    relayURL: new URL(networkConfig.node.replace(/^http/, 'ws')),
+    txHistoryStorage: new NoOpTransactionHistoryStorage(),
     costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
   };
 
@@ -100,7 +94,10 @@ async function createWallet(seed: string) {
 }
 
 async function createProviders(walletCtx: ReturnType<typeof createWallet> extends Promise<infer T> ? T : never) {
-  const privateStatePassword = process.env.PRIVATE_STATE_PASSWORD?.trim() || 'development';
+  // The SDK requires the private-state password to be at least 16 characters.
+  // The default below is a placeholder for local devnet only — set a strong
+  // password via PRIVATE_STATE_PASSWORD when you move to a non-local target.
+  const privateStatePassword = process.env.PRIVATE_STATE_PASSWORD?.trim() || 'Local-Devnet-Development-Placeholder-1';
 
   const state = await walletCtx.wallet.waitForSyncedState();
 
@@ -130,9 +127,9 @@ async function createProviders(walletCtx: ReturnType<typeof createWallet> extend
       accountId,
       privateStoragePasswordProvider: () => privateStatePassword,
     }),
-    publicDataProvider: indexerPublicDataProvider(CONFIG.indexer, CONFIG.indexerWS),
+    publicDataProvider: indexerPublicDataProvider(networkConfig.indexer, networkConfig.indexerWS),
     zkConfigProvider,
-    proofProvider: httpClientProofProvider(CONFIG.proofServer, zkConfigProvider),
+    proofProvider: httpClientProofProvider(networkConfig.proofServer, zkConfigProvider),
     walletProvider,
     midnightProvider: walletProvider,
   };
@@ -148,22 +145,16 @@ async function main() {
   const rl = createInterface({ input: stdin, output: stdout });
 
   // Check for deployment
-  if (!fs.existsSync('deployment.json')) {
-    console.error('❌ No deployment.json found! Run: npm run deploy\n');
+  const deployment = getDeployment(network);
+  if (!deployment) {
+    console.error(`No deploy on file for network ${network}. Run \`npm run setup -- --network ${network}\` first.`);
     process.exit(1);
   }
-
-  const deployment = JSON.parse(fs.readFileSync('deployment.json', 'utf-8'));
-  console.log(`  Contract: ${deployment.contractAddress}`);
-  console.log(`  Network: ${deployment.network || 'preprod'}\n`);
+  console.log(`  Contract: ${deployment.address}`);
+  console.log(`  Network: ${network}\n`);
 
   try {
-    // Create wallet from saved seed
-    if (!fs.existsSync('.midnight-seed')) {
-      console.error('❌ No .midnight-seed file found! Run: npm run deploy\n');
-      process.exit(1);
-    }
-    const seed = fs.readFileSync('.midnight-seed', 'utf-8').trim();
+    const seed = SEED;
 
     console.log('  Connecting to wallet...');
     const walletCtx = await createWallet(seed);
@@ -182,13 +173,24 @@ async function main() {
     const balance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
     console.log(`  Balance: ${balance.toLocaleString()} tNight\n`);
 
+    // Surface a faucet hint when a public-network wallet has 0 tNIGHT.
+    // Reads (option 2) work without funds, but writes (option 1) need DUST
+    // generated from registered NIGHT — without this hint the next failure
+    // mode is a confusing "Insufficient Funds" deep inside the tx builder.
+    if (balance === 0n && network !== 'undeployed' && networkConfig.faucet) {
+      const address = walletCtx.unshieldedKeystore.getBech32Address();
+      console.log('  ⚠ Wallet has no tNight. Fund it from the faucet to send transactions:');
+      console.log(`     ${networkConfig.faucet}`);
+      console.log(`     Wallet address: ${address}\n`);
+    }
+
     // Setup providers and connect to contract
     console.log('  Connecting to contract...');
     const providers = await createProviders(walletCtx);
 
     const deployed: any = await findDeployedContract(providers, {
       compiledContract: compiledContract as any,
-      contractAddress: deployment.contractAddress,
+      contractAddress: deployment.address,
     });
 
     console.log('  ✅ Connected!\n');
@@ -222,7 +224,7 @@ async function main() {
         case '2': {
           console.log('\n  Reading message from blockchain...');
           try {
-            const contractState = await providers.publicDataProvider.queryContractState(deployment.contractAddress);
+            const contractState = await providers.publicDataProvider.queryContractState(deployment.address);
             if (contractState) {
               const ledgerState = HelloWorld.ledger(contractState.data);
               const message = Buffer.from(ledgerState.message).toString();

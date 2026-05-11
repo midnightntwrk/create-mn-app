@@ -1,7 +1,6 @@
 /**
- * Check wallet balance on Midnight Preprod network
+ * Check wallet balance on the local Midnight devnet
  */
-import * as fs from 'node:fs';
 import { WebSocket } from 'ws';
 import * as Rx from 'rxjs';
 import { Buffer } from 'buffer';
@@ -14,23 +13,18 @@ import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
 import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
 import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
 import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
-import { createKeystore, InMemoryTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { createKeystore, NoOpTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { resolveNetwork, getOrCreateSeed } from './network';
 
 // Enable WebSocket for GraphQL subscriptions
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-// Set network to preprod
-setNetworkId('preprod');
+// ─── Network configuration ─────────────────────────────────────────────────────
 
-// Preprod network configuration
-const CONFIG = {
-  indexer: 'https://indexer.preprod.midnight.network/api/v3/graphql',
-  indexerWS: 'wss://indexer.preprod.midnight.network/api/v3/graphql/ws',
-  node: 'https://rpc.preprod.midnight.network',
-  proofServer: 'http://127.0.0.1:6300',
-  faucetUrl: 'https://faucet.preprod.midnight.network/',
-};
+const { network, config: networkConfig } = resolveNetwork();
+setNetworkId(networkConfig.networkId);
+const SEED = getOrCreateSeed(network);
 
 // ─── Wallet Functions ──────────────────────────────────────────────────────────
 
@@ -52,10 +46,10 @@ async function createWallet(seed: string) {
 
   const walletConfig = {
     networkId,
-    indexerClientConnection: { indexerHttpUrl: CONFIG.indexer, indexerWsUrl: CONFIG.indexerWS },
-    provingServerUrl: new URL(CONFIG.proofServer),
-    relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
-    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+    indexerClientConnection: { indexerHttpUrl: networkConfig.indexer, indexerWsUrl: networkConfig.indexerWS },
+    provingServerUrl: new URL(networkConfig.proofServer),
+    relayURL: new URL(networkConfig.node.replace(/^http/, 'ws')),
+    txHistoryStorage: new NoOpTransactionHistoryStorage(),
     costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
   };
 
@@ -78,19 +72,7 @@ async function main() {
   console.log('║                   Wallet Balance Checker                      ║');
   console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
-  // Check for deployment.json to get seed
-  if (!fs.existsSync('deployment.json')) {
-    console.error('❌ No deployment.json found! Run: npm run deploy\n');
-    process.exit(1);
-  }
-
-  const deployment = JSON.parse(fs.readFileSync('deployment.json', 'utf-8'));
-
-  if (!fs.existsSync('.midnight-seed')) {
-    console.error('❌ No .midnight-seed file found! Run: npm run deploy\n');
-    process.exit(1);
-  }
-  const seed = fs.readFileSync('.midnight-seed', 'utf-8').trim();
+  const seed = SEED;
 
   try {
     console.log('  Building wallet...');
@@ -114,18 +96,23 @@ async function main() {
 
     console.log('\n─── Wallet Details ─────────────────────────────────────────────\n');
     console.log(`  Address: ${address}`);
-    console.log(`  Network: preprod\n`);
+    console.log(`  Network: ${networkConfig.networkId}\n`);
 
     console.log('─── Balances ───────────────────────────────────────────────────\n');
     console.log(`  tNight: ${tNightBalance.toLocaleString()}`);
     console.log(`  DUST:   ${dustBalance.toLocaleString()}\n`);
 
     if (tNightBalance === 0n) {
-      console.log('─── Need Funds? ────────────────────────────────────────────────\n');
-      console.log(`  1. Visit: ${CONFIG.faucetUrl}`);
-      console.log(`  2. Paste your address: ${address}`);
-      console.log(`  3. Request tokens and wait ~2-5 minutes`);
-      console.log(`  4. Run this command again to check balance\n`);
+      if (network === 'undeployed') {
+        console.log('  ⚠ Wallet has no tNight. Make sure the local devnet is running');
+        console.log('     (npm run setup) — the genesis seed is pre-funded by the dev preset.\n');
+      } else if (networkConfig.faucet) {
+        console.log(`  ⚠ Wallet has no tNight. Fund it from the faucet:`);
+        console.log(`     ${networkConfig.faucet}`);
+        console.log(`     Wallet address: ${address}\n`);
+      } else {
+        console.log('  ⚠ Wallet has no tNight.\n');
+      }
     } else {
       console.log('  ✅ Wallet is funded and ready!\n');
     }

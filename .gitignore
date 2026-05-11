@@ -32,3 +32,6 @@ logs/
 
 # Coverage
 coverage/
+
+# Local planning artifacts (superpowers)
+docs/superpowers/

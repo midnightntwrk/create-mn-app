@@ -49,6 +49,7 @@ async function testCreateApp() {
       "src/deploy.ts",
       "src/cli.ts",
       "src/check-balance.ts",
+      "scripts/e2e-check.ts",
     ];
 
     for (const file of requiredFiles) {

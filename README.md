@@ -1,11 +1,19 @@
 # create-mn-app
 
-Scaffold Midnight Network applications on Preprod.
+Scaffold a Midnight Network DApp project. One command bootstraps a contract, a local devnet, and the SDK plumbing to deploy and call it. Public testnets are one flag away.
 
 [![npm version](https://img.shields.io/npm/v/create-mn-app.svg)](https://www.npmjs.com/package/create-mn-app)
 [![npm downloads](https://img.shields.io/npm/dw/create-mn-app.svg)](https://www.npmjs.com/package/create-mn-app)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Node.js](https://img.shields.io/node/v/create-mn-app.svg)](https://nodejs.org/)
+
+## Requirements
+
+| Requirement      | Version  | Notes                                                  |
+| ---------------- | -------- | ------------------------------------------------------ |
+| Node.js          | 22+      |                                                        |
+| Docker           | Compose v2 | Runs the local devnet and proof server               |
+| Compact compiler | 0.31.0   | Required for `counter` and `bboard`; the CLI offers to install it for you |
 
 ## Quick Start
 
@@ -15,132 +23,110 @@ cd my-app
 npm run setup
 ```
 
-The `setup` command:
+That's the whole getting-started flow. `setup` boots a local devnet in Docker, compiles the contract, and deploys it. No wallet extension, no faucet, no public-network credentials.
 
-1. Starts proof server via Docker
-2. Compiles the Compact contract
-3. Deploys to Preprod (prompts for faucet funding)
+### What you get
 
-> Fund your wallet at [faucet.preprod.midnight.network](https://faucet.preprod.midnight.network/)
+**Bundled local devnet.** The `hello-world` template ships a `docker-compose.yml` that runs node + indexer + proof-server. The dev preset pre-mints NIGHT to a genesis seed, so deploys work the second `setup` finishes — no faucet polling, no testnet flake.
 
-## Why create-mn-app?
-
-- **Zero Configuration** - Start building immediately
-- **Preprod Ready** - Deploys to Midnight Preprod network
-- **SDK 3.0** - Uses latest Midnight wallet and contract SDKs
-- **One Command Setup** - Single `npm run setup` handles everything
-- **Auto-updates** - Built-in notifier for new versions
-
-## Templates
-
-Templates are organized by category. The interactive flow guides you through category → template selection.
+## Deploy to preview and preprod
 
 ```bash
-npx create-mn-app@latest my-app         # interactive: pick category then template
-npx create-mn-app@latest my-app --list  # list all templates grouped by category
+npm run setup --network preview
 ```
+
+```bash
+npm run setup --network preprod
+```
+
+## Networks
+
+The bundled `hello-world` template runs against three networks. Local devnet is the default.
+
+| Network      | Source                                                            | When to use                                              |
+| ------------ | ----------------------------------------------------------------- | -------------------------------------------------------- |
+| `undeployed` | Local devnet from `docker-compose.yml`                            | Default. Iterate fast, no funding, no extension needed.  |
+| `preview`    | Public preview testnet ([faucet](https://faucet.preview.midnight.network/)) | Test against shared infra before a release.              |
+| `preprod`    | Public preprod testnet ([faucet](https://faucet.preprod.midnight.network/)) | Validate against the network closest to mainnet.         |
+
+Switch network on a single command:
+
+```bash
+npm run setup -- --network preview
+```
+
+Or set the active network for the project, so subsequent commands don't need the flag:
+
+```bash
+npm run network preview     # active network is now preview
+npm run setup               # uses preview
+npm run cli                 # uses preview
+npm run network             # prints current state
+```
+
+On first use of `preview` or `preprod`, the deploy script generates a wallet seed, prints the faucet URL, and polls the wallet balance until funds land. Seeds are stored per-network in `.midnight-state.json` (gitignored) — switch back later and your funded wallet is still there.
+
+
+## Additional Templates
+
+Pick a template interactively, or pass `--template`:
+
+```bash
+npx create-mn-app@latest my-app                    # interactive picker
+npx create-mn-app@latest my-app --template counter # skip the prompts
+npx create-mn-app@latest my-app --list             # show every template
+```
+
+**NOTE:** Not all templates support the `--network` flag for switching networks like `hello-world`. Consult each template's README for more information.
 
 ### Contract
 
-| Template | Description |
-| -------- | ----------- |
-| `hello-world` (default) | Basic message storage contract demonstrating state management |
-
-```bash
-npx create-mn-app@latest my-app
-cd my-app
-npm run setup     # starts proof server, compiles, deploys
-npm run cli       # interact with deployed contract
-```
+| Template                | What it is                                                              |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `hello-world` (default) | Bundled. Local devnet + message-storage contract. The fastest path to a working deploy. |
 
 ### Full DApp
 
-| Template | Description |
-| -------- | ----------- |
-| `counter` | Increment/decrement app with zkProofs ([source](https://github.com/midnightntwrk/example-counter)) |
-| `bboard` | Multi-user bulletin board with privacy patterns ([source](https://github.com/midnightntwrk/example-bboard)) |
-| `dex` | Decentralized exchange using FungibleToken *(coming soon)* |
-| `midnight-kitties` | NFT-based full stack DApp *(coming soon)* |
+| Template  | What it is                                                                                                |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| `counter` | Increment/decrement contract with ZK proofs. Cloned from [`example-counter`](https://github.com/midnightntwrk/example-counter). |
+| `bboard`  | Multi-user bulletin board demonstrating privacy patterns. Cloned from [`example-bboard`](https://github.com/midnightntwrk/example-bboard). |
+
+The DApp templates clone an upstream example and configure it for the pinned compiler. They follow the upstream project's setup flow — see the cloned repo's README after scaffolding.
+
+`dex` and `midnight-kitties` are listed as coming-soon in the picker.
+
+## CLI reference
 
 ```bash
-npx create-mn-app@latest my-app --template counter
-npx create-mn-app@latest my-app --template bboard
+npx create-mn-app@latest [project-directory] [options]
 ```
 
-Requires Compact compiler — the CLI will check and offer to install it.
+| Option                                          | Description                                       |
+| ----------------------------------------------- | ------------------------------------------------- |
+| `-t, --template <name>`                         | `hello-world`, `counter`, `bboard`                |
+| `--list`                                        | List all templates and exit                       |
+| `--from <owner/repo>`                           | Scaffold from any GitHub repository               |
+| `-y, --yes`                                     | Accept defaults; non-interactive                  |
+| `--dry-run`                                     | Print actions without writing files               |
+| `--use-npm` / `--use-yarn` / `--use-pnpm` / `--use-bun` | Force a package manager                   |
+| `--skip-install`                                | Skip dependency install                           |
+| `--skip-git`                                    | Skip `git init`                                   |
+| `--verbose`                                     | Show detailed output                              |
+| `-V, --version`                                 | Print version                                     |
+| `-h, --help`                                    | Print help                                        |
 
-### Connector
-
-Integration examples and patterns *(coming soon)*.
-
-## Requirements
-
-| Requirement      | Version | Notes                                              |
-| ---------------- | ------- | -------------------------------------------------- |
-| Node.js          | 22+     | Required for all templates                         |
-| Docker           | Latest  | Runs proof server                                  |
-| Compact Compiler | 0.28.0+ | Counter and Bboard templates (auto-install offered)|
-
-## CLI Options
-
-```bash
-npx create-mn-app@latest [project-name] [options]
-```
-
-| Option                    | Description                                          |
-| ------------------------- | ---------------------------------------------------- |
-| `-t, --template <name>`   | Template: `hello-world`, `counter`, `bboard`        |
-| `--list`                  | List all available templates grouped by category     |
-| `-y, --yes`               | Accept all defaults (non-interactive mode)           |
-| `--dry-run`               | Preview what will be created without writing files   |
-| `--from <owner/repo>`     | Create from a custom GitHub repository               |
-| `--use-npm/yarn/pnpm/bun` | Force package manager                               |
-| `--skip-install`          | Skip dependency installation                         |
-| `--skip-git`              | Skip git initialization                              |
-| `--verbose`               | Show detailed output                                 |
-| `-h, --help`              | Show help                                            |
-| `-V, --version`           | Show version                                         |
-
-### Non-Interactive / CI Mode
-
-Use `-y` or set `CI=true` / `GITHUB_ACTIONS=true` to skip all prompts:
-
-```bash
-npx create-mn-app@latest my-app -y -t counter    # defaults, no prompts
-CI=true npx create-mn-app@latest my-app           # auto-detected in CI
-
-npx create-mn-app@latest my-app --dry-run         # preview without writing files
-npx create-mn-app@latest my-app --from user/repo  # clone any GitHub repo
-```
-
-## Project Structure
-
-```
-my-app/
-├── contracts/
-│   └── hello-world.compact    # Compact smart contract
-├── src/
-│   ├── cli.ts                 # Interact with deployed contract
-│   ├── deploy.ts              # Deploy contract to Preprod
-│   └── check-balance.ts       # Check wallet balance
-├── docker-compose.yml         # Proof server config
-├── package.json
-└── deployment.json            # Generated after deploy (contains wallet seed)
-```
+CI mode is auto-detected (`CI=true` or `GITHUB_ACTIONS=true`) and skips prompts. `-y` does the same explicitly.
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Issues and pull requests welcome at [github.com/midnightntwrk/create-mn-app](https://github.com/midnightntwrk/create-mn-app).
 
 ## Links
 
 - [Midnight Docs](https://docs.midnight.network)
-- [Discord Community](https://discord.com/invite/midnightnetwork)
-- [GitHub](https://github.com/midnightntwrk/create-mn-app)
+- [Discord](https://discord.com/invite/midnightnetwork)
+- [Preview Faucet](https://faucet.preview.midnight.network/)
 - [Preprod Faucet](https://faucet.preprod.midnight.network/)
 
 ## License

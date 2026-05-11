@@ -1,0 +1,158 @@
+/**
+ * End-to-end smoke check for {{projectName}}.
+ *
+ * Reconnects to the deployed contract, reads its ledger state, and exits 0
+ * on success. Used by `npm run test:e2e` and by the project's CI workflows.
+ */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { WebSocket } from 'ws';
+import { Buffer } from 'buffer';
+
+import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { resolveNetwork, getOrCreateSeed, getDeployment } from '../src/network';
+import * as ledger from '@midnight-ntwrk/ledger-v8';
+import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
+import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
+import { createKeystore, NoOpTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { CompiledContract } from '@midnight-ntwrk/compact-js';
+
+// @ts-expect-error wallet sync requires WebSocket
+globalThis.WebSocket = WebSocket;
+
+// ─── Network configuration ─────────────────────────────────────────────────────
+
+const { network, config: networkConfig } = resolveNetwork();
+setNetworkId(networkConfig.networkId);
+const SEED = getOrCreateSeed(network);
+
+function fail(msg: string): never {
+  console.error(`❌ e2e-check failed: ${msg}`);
+  process.exit(1);
+}
+
+function isHexAddress(s: unknown): s is string {
+  return typeof s === 'string' && /^[0-9a-fA-F]+$/.test(s) && s.length >= 32;
+}
+
+async function main() {
+  // 1. Deployment sanity
+  const deployment = getDeployment(network);
+  if (!deployment) {
+    console.error(`No deploy on file for network ${network}.`);
+    process.exit(1);
+  }
+  if (!isHexAddress(deployment.address)) {
+    fail(`Deployment address missing or invalid: ${JSON.stringify(deployment, null, 2)}`);
+  }
+
+  // 2. Build wallet (genesis seed) and providers
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
+  const contractPath = path.join(zkConfigPath, 'contract', 'index.js');
+  if (!fs.existsSync(contractPath)) fail('Compiled contract missing — run `npm run compile`.');
+  const HelloWorld = await import(pathToFileURL(contractPath).href);
+  const compiledContract = CompiledContract.make('hello-world', HelloWorld.Contract).pipe(
+    CompiledContract.withVacantWitnesses,
+    CompiledContract.withCompiledFileAssets(zkConfigPath),
+  );
+
+  const hd = HDWallet.fromSeed(Buffer.from(SEED, 'hex'));
+  if (hd.type !== 'seedOk') fail('Bad seed.');
+  const derived = hd.hdWallet
+    .selectAccount(0)
+    .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
+    .deriveKeysAt(0);
+  if (derived.type !== 'keysDerived') fail('Key derivation failed.');
+  hd.hdWallet.clear();
+
+  const networkId = getNetworkId();
+  const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(derived.keys[Roles.Zswap]);
+  const dustSecretKey = ledger.DustSecretKey.fromSeed(derived.keys[Roles.Dust]);
+  const unshieldedKeystore = createKeystore(derived.keys[Roles.NightExternal], networkId);
+
+  const wallet = await WalletFacade.init({
+    configuration: {
+      networkId,
+      indexerClientConnection: { indexerHttpUrl: networkConfig.indexer, indexerWsUrl: networkConfig.indexerWS },
+      provingServerUrl: new URL(networkConfig.proofServer),
+      relayURL: new URL(networkConfig.node.replace(/^http/, 'ws')),
+      txHistoryStorage: new NoOpTransactionHistoryStorage(),
+      costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
+    },
+    shielded: async (c) => ShieldedWallet(c).startWithSecretKeys(shieldedSecretKeys),
+    unshielded: async (c) =>
+      UnshieldedWallet(c).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+    dust: async (c) =>
+      DustWallet(c).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
+  });
+  await wallet.start(shieldedSecretKeys, dustSecretKey);
+  const state = await wallet.waitForSyncedState();
+
+  const zkConfigProvider = new NodeZkConfigProvider(zkConfigPath);
+  const walletProvider = {
+    getCoinPublicKey: () => state.shielded.coinPublicKey.toHexString(),
+    getEncryptionPublicKey: () => state.shielded.encryptionPublicKey.toHexString(),
+    async balanceTx() {
+      throw new Error('e2e-check is read-only and should not balance transactions');
+    },
+    submitTx() {
+      throw new Error('e2e-check is read-only and should not submit transactions');
+    },
+  } as any;
+
+  const providers = {
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: 'hello-world-state',
+      accountId: unshieldedKeystore.getBech32Address().toString(),
+      // SDK requires ≥16 chars. e2e-check is read-only so we don't expose
+      // the env-var override here — match the deploy script's local-devnet default.
+      privateStoragePasswordProvider: () => 'Local-Devnet-Development-Placeholder-1',
+    }),
+    publicDataProvider: indexerPublicDataProvider(networkConfig.indexer, networkConfig.indexerWS),
+    zkConfigProvider,
+    proofProvider: httpClientProofProvider(networkConfig.proofServer, zkConfigProvider),
+    walletProvider,
+    midnightProvider: walletProvider,
+  };
+
+  // 3. Reconnect to the deployed contract — proves callTx interface is wired
+  try {
+    await findDeployedContract(providers, {
+      contractAddress: deployment.address,
+      compiledContract: compiledContract as any,
+    });
+  } catch (err: any) {
+    await wallet.stop();
+    fail(`findDeployedContract threw: ${err?.message ?? err}`);
+  }
+
+  // 4. Read the on-chain contract state via the public data provider — proves
+  // the contract is indexed and queryable on the chain itself, not just that
+  // we know how to construct the local handle.
+  const onChainState = await providers.publicDataProvider.queryContractState(deployment.address);
+  if (!onChainState) {
+    await wallet.stop();
+    fail(`queryContractState returned null for ${deployment.address}`);
+  }
+
+  console.log(`✅ e2e-check passed`);
+  console.log(`   contractAddress: ${deployment.address}`);
+  console.log(`   network:         ${network}`);
+
+  await wallet.stop();
+  process.exit(0);
+}
+
+main().catch(async (err) => {
+  console.error(err);
+  process.exit(1);
+});

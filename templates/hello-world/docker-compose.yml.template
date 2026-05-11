@@ -1,9 +1,70 @@
+# Local Midnight devnet for {{projectName}}
+# LOCAL DEVELOPMENT ONLY — do not expose these ports to a public network.
+# Tear down with: docker compose down -v
+name: {{kebabName}}-devnet
+
 services:
-  proof-server:
-    image: midnightntwrk/proof-server:7.0.0
-    platform: linux/amd64
+  node:
+    image: midnightntwrk/midnight-node:0.22.5
+    container_name: {{kebabName}}-node
+    ports:
+      - "9944:9944"
     environment:
-      - PORT=6300
+      CFG_PRESET: "dev"
+      SIDECHAIN_BLOCK_BENEFICIARY: "04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  indexer:
+    # Pinned to 4.2.1, NOT 4.3.0+: indexer-standalone 4.3.0 introduced an SPO
+    # (Cardano Stake Pool Operator) indexer that hard-requires a Blockfrost API
+    # key (APP__INFRA__SPO_NODE__BLOCKFROST_ID) — the process exits 1 at boot
+    # if missing, and placeholder values are explicitly rejected. There is no
+    # opt-out flag. 4.2.1 is the latest tag without that dependency, so it is
+    # the latest viable image for a zero-config local devnet. Do not bump to
+    # 4.3.x without first wiring a Blockfrost credential into this compose file
+    # — that is unacceptable for a "first DApp on Midnight" experience.
+    image: midnightntwrk/indexer-standalone:4.2.1
+    container_name: {{kebabName}}-indexer
+    ports:
+      - "8088:8088"
+    environment:
+      RUST_LOG: "indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=off,info"
+      APP__APPLICATION__NETWORK_ID: "undeployed"
+      APP__INFRA__NODE__URL: "ws://node:9944"
+      APP__INFRA__STORAGE__PASSWORD: "indexer"
+      APP__INFRA__PUB_SUB__PASSWORD: "indexer"
+      APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD: "indexer"
+      APP__INFRA__SECRET: "303132333435363738393031323334353637383930313233343536373839303132"
+    healthcheck:
+      test: ["CMD-SHELL", "cat /var/run/indexer-standalone/running"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    depends_on:
+      node:
+        condition: service_healthy
+
+  proof-server:
+    # No healthcheck: the proof-server image is distroless (nix-built) and has
+    # no shell or curl/wget binaries inside, so `docker compose --wait` cannot
+    # gate on it. The deploy script polls the proof-server from the host side
+    # before submitting transactions (see waitForProofServer in src/deploy.ts).
+    # Pinned to 8.0.3, NOT a 7.x: proof-server 7.x (all patches tested: 7.0.0
+    # through 7.0.3) hangs in proof generation on Apple Silicon Macs running
+    # Docker Desktop — the actix worker thread spins at 100% CPU forever after
+    # receiving /prove, with no log output, no memory growth, and no progress.
+    # The same image runs fine on x86_64 Linux. 8.0.3 fixed this; never bump
+    # downward into the 7.x line without re-validating on macOS arm64.
+    image: midnightntwrk/proof-server:8.0.3
+    container_name: {{kebabName}}-proof-server
+    command: ["midnight-proof-server -v"]
     ports:
       - "6300:6300"
-    restart: unless-stopped
+    environment:
+      RUST_BACKTRACE: "full"

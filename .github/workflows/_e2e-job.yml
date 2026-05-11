@@ -1,0 +1,124 @@
+name: E2E (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner to use (ubuntu-latest | macos-latest)
+        required: true
+        type: string
+      scaffold-command:
+        description: Command that scaffolds a fresh project at ./test-app
+        required: true
+        type: string
+      build-source:
+        description: Whether to npm ci + npm run build the scaffolder source
+        required: false
+        type: boolean
+        default: true
+      network:
+        description: Network to deploy against (undeployed | preview | preprod)
+        required: false
+        type: string
+        default: undeployed
+    secrets:
+      WALLET_SEED:
+        description: Pre-funded wallet seed for public-network E2E. Required when network != undeployed.
+        required: false
+
+jobs:
+  e2e:
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Docker via Colima (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          brew install docker docker-compose colima
+          colima start --cpu 2 --memory 4 --disk 30
+          docker version
+
+      - name: Read pinned Compact compiler version
+        id: compact-version
+        run: echo "version=$(cat .compact-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Compact CLI
+        run: |
+          curl -fsSL https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          # The installer drops `compact` into ~/.local/bin
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned Compact compiler
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          compact --version
+          compact update "${{ steps.compact-version.outputs.version }}"
+          compact use "${{ steps.compact-version.outputs.version }}" 2>/dev/null || true
+
+      - name: Build scaffolder (source flavor)
+        if: ${{ inputs.build-source }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Scaffold test-app
+        run: |
+          rm -rf test-app
+          ${{ inputs.scaffold-command }}
+          test -d test-app
+
+      - name: npm run setup
+        working-directory: test-app
+        env:
+          MIDNIGHT_WALLET_SEED: ${{ secrets.WALLET_SEED }}
+        run: |
+          if [ "${{ inputs.network }}" = "undeployed" ]; then
+            npm run setup
+          else
+            npm run setup -- --network ${{ inputs.network }}
+          fi
+
+      - name: npm run test:e2e
+        working-directory: test-app
+        env:
+          MIDNIGHT_WALLET_SEED: ${{ secrets.WALLET_SEED }}
+        run: |
+          if [ "${{ inputs.network }}" = "undeployed" ]; then
+            npm run test:e2e
+          else
+            npm run test:e2e -- --network ${{ inputs.network }}
+          fi
+
+      - name: Capture diagnostics on failure
+        if: failure()
+        working-directory: test-app
+        run: |
+          docker compose ps -a > docker-ps.txt 2>&1 || true
+          docker compose logs --no-color > docker-logs.txt 2>&1 || true
+
+      - name: Upload diagnostics artifact on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-diagnostics-${{ inputs.runs-on }}
+          path: |
+            test-app/docker-ps.txt
+            test-app/docker-logs.txt
+            test-app/.midnight-state.json
+            test-app/contracts/managed/
+          if-no-files-found: ignore
+
+      - name: Tear down devnet
+        if: always()
+        working-directory: test-app
+        run: docker compose down -v || true

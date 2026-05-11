@@ -8,40 +8,42 @@
   "scripts": {
     "compile": "compact compile contracts/hello-world.compact contracts/managed/hello-world",
     "build": "npx tsc --noEmit || true",
-    "setup": "docker compose up -d && npm run compile && npm run deploy",
+    "setup": "npx tsx src/setup.ts",
     "deploy": "npx tsx src/deploy.ts",
     "cli": "npx tsx src/cli.ts",
     "check-balance": "npx tsx src/check-balance.ts",
+    "network": "npx tsx src/network.ts",
     "proof-server:start": "docker compose up -d",
     "proof-server:stop": "docker compose down",
-    "clean": "rm -rf contracts/managed deployment.json",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "clean": "rm -rf contracts/managed .midnight-state.json",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:e2e": "tsx scripts/e2e-check.ts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-js": "2.5.0",
-    "rxjs": "^7.8.1",
-    "@midnight-ntwrk/compact-runtime": "0.15.0",
+    "rxjs": "^7.8.2",
+    "@midnight-ntwrk/compact-runtime": "0.16.0",
     "@midnight-ntwrk/ledger-v8": "8.0.3",
-    "@midnight-ntwrk/midnight-js-contracts": "4.0.2",
-    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.0.2",
-    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.0.2",
-    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.0.2",
-    "@midnight-ntwrk/midnight-js-network-id": "4.0.2",
-    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.0.2",
-    "@midnight-ntwrk/midnight-js-types": "4.0.2",
-    "@midnight-ntwrk/midnight-js-utils": "4.0.2",
+    "@midnight-ntwrk/midnight-js-contracts": "4.0.4",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.4",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-types": "4.0.4",
+    "@midnight-ntwrk/midnight-js-utils": "4.0.4",
     "@midnight-ntwrk/wallet-sdk-dust-wallet": "3.0.0",
     "@midnight-ntwrk/wallet-sdk-facade": "3.0.0",
     "@midnight-ntwrk/wallet-sdk-hd": "3.0.1",
     "@midnight-ntwrk/wallet-sdk-shielded": "2.1.0",
     "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "2.1.0",
-    "ws": "^8.19.0"
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "engines": {
     "node": ">=22.0.0"

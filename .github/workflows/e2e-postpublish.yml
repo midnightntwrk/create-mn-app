@@ -1,0 +1,77 @@
+name: E2E Post-Publish
+
+on:
+  workflow_run:
+    workflows: ['Publish to NPM']
+    types: [completed]
+
+jobs:
+  matrix:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # See note in e2e.yml — macos-latest disabled until Colima works on
+        # GitHub-hosted macOS runners.
+        os: [ubuntu-latest]
+    uses: ./.github/workflows/_e2e-job.yml
+    with:
+      runs-on: ${{ matrix.os }}
+      scaffold-command: 'npx --yes create-mn-app@latest test-app -y -t hello-world --use-npm'
+      build-source: false
+
+  preview-check:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      has-seed: ${{ steps.check.outputs.has-seed }}
+    steps:
+      - id: check
+        env:
+          SEED: ${{ secrets.PREVIEW_TEST_WALLET_SEED }}
+        run: |
+          if [ -n "$SEED" ]; then
+            echo "has-seed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-seed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e-preview:
+    needs: preview-check
+    if: needs.preview-check.outputs.has-seed == 'true'
+    uses: ./.github/workflows/_e2e-job.yml
+    with:
+      runs-on: ubuntu-latest
+      scaffold-command: 'npx --yes create-mn-app@latest test-app -y -t hello-world --use-npm'
+      network: preview
+      build-source: false
+    secrets:
+      WALLET_SEED: ${{ secrets.PREVIEW_TEST_WALLET_SEED }}
+
+  preprod-check:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      has-seed: ${{ steps.check.outputs.has-seed }}
+    steps:
+      - id: check
+        env:
+          SEED: ${{ secrets.PREPROD_TEST_WALLET_SEED }}
+        run: |
+          if [ -n "$SEED" ]; then
+            echo "has-seed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-seed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e-preprod:
+    needs: preprod-check
+    if: needs.preprod-check.outputs.has-seed == 'true'
+    uses: ./.github/workflows/_e2e-job.yml
+    with:
+      runs-on: ubuntu-latest
+      scaffold-command: 'npx --yes create-mn-app@latest test-app -y -t hello-world --use-npm'
+      network: preprod
+      build-source: false
+    secrets:
+      WALLET_SEED: ${{ secrets.PREPROD_TEST_WALLET_SEED }}
