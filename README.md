@@ -18,7 +18,7 @@ Scaffold a Midnight Network DApp project. One command bootstraps a contract, a l
 ## Quick Start
 
 ```bash
-npx create-mn-app@latest my-app
+npx create-mn-app@latest my-app # (Select the Contract project type)
 cd my-app
 npm run setup
 ```
