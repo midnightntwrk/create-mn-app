@@ -8,21 +8,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocket } from 'ws';
-import { Buffer } from 'buffer';
 
 import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
-import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { resolveNetwork, getOrCreateSeed, getDeployment } from '../src/network';
-import * as ledger from '@midnight-ntwrk/ledger-v8';
-import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
-import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
-import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
-import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
-import { createKeystore, NoOpTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { createWallet, persistWalletState } from '../src/wallet';
 import { CompiledContract } from '@midnight-ntwrk/compact-js';
 
 // @ts-expect-error wallet sync requires WebSocket
@@ -31,7 +24,6 @@ globalThis.WebSocket = WebSocket;
 // ─── Network configuration ─────────────────────────────────────────────────────
 
 const { network, config: networkConfig } = resolveNetwork();
-setNetworkId(networkConfig.networkId);
 const SEED = getOrCreateSeed(network);
 
 function fail(msg: string): never {
@@ -54,7 +46,7 @@ async function main() {
     fail(`Deployment address missing or invalid: ${JSON.stringify(deployment, null, 2)}`);
   }
 
-  // 2. Build wallet (genesis seed) and providers
+  // 2. Build wallet and providers
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
   const contractPath = path.join(zkConfigPath, 'contract', 'index.js');
@@ -65,37 +57,11 @@ async function main() {
     CompiledContract.withCompiledFileAssets(zkConfigPath),
   );
 
-  const hd = HDWallet.fromSeed(Buffer.from(SEED, 'hex'));
-  if (hd.type !== 'seedOk') fail('Bad seed.');
-  const derived = hd.hdWallet
-    .selectAccount(0)
-    .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
-    .deriveKeysAt(0);
-  if (derived.type !== 'keysDerived') fail('Key derivation failed.');
-  hd.hdWallet.clear();
-
-  const networkId = getNetworkId();
-  const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(derived.keys[Roles.Zswap]);
-  const dustSecretKey = ledger.DustSecretKey.fromSeed(derived.keys[Roles.Dust]);
-  const unshieldedKeystore = createKeystore(derived.keys[Roles.NightExternal], networkId);
-
-  const wallet = await WalletFacade.init({
-    configuration: {
-      networkId,
-      indexerClientConnection: { indexerHttpUrl: networkConfig.indexer, indexerWsUrl: networkConfig.indexerWS },
-      provingServerUrl: new URL(networkConfig.proofServer),
-      relayURL: new URL(networkConfig.node.replace(/^http/, 'ws')),
-      txHistoryStorage: new NoOpTransactionHistoryStorage(),
-      costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
-    },
-    shielded: async (c) => ShieldedWallet(c).startWithSecretKeys(shieldedSecretKeys),
-    unshielded: async (c) =>
-      UnshieldedWallet(c).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
-    dust: async (c) =>
-      DustWallet(c).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
-  });
-  await wallet.start(shieldedSecretKeys, dustSecretKey);
-  const state = await wallet.waitForSyncedState();
+  const walletCtx = await createWallet({ network, networkConfig, seed: SEED });
+  const state = await walletCtx.wallet.waitForSyncedState();
+  // Persist the sync state — saves time on the next e2e-check invocation in CI
+  // when run against the same persistent wallet directory.
+  await persistWalletState(network, walletCtx);
 
   const zkConfigProvider = new NodeZkConfigProvider(zkConfigPath);
   const walletProvider = {
@@ -112,7 +78,7 @@ async function main() {
   const providers = {
     privateStateProvider: levelPrivateStateProvider({
       privateStateStoreName: 'hello-world-state',
-      accountId: unshieldedKeystore.getBech32Address().toString(),
+      accountId: walletCtx.unshieldedKeystore.getBech32Address().toString(),
       // SDK requires ≥16 chars. e2e-check is read-only so we don't expose
       // the env-var override here — match the deploy script's local-devnet default.
       privateStoragePasswordProvider: () => 'Local-Devnet-Development-Placeholder-1',
@@ -131,7 +97,7 @@ async function main() {
       compiledContract: compiledContract as any,
     });
   } catch (err: any) {
-    await wallet.stop();
+    await walletCtx.wallet.stop();
     fail(`findDeployedContract threw: ${err?.message ?? err}`);
   }
 
@@ -140,7 +106,7 @@ async function main() {
   // we know how to construct the local handle.
   const onChainState = await providers.publicDataProvider.queryContractState(deployment.address);
   if (!onChainState) {
-    await wallet.stop();
+    await walletCtx.wallet.stop();
     fail(`queryContractState returned null for ${deployment.address}`);
   }
 
@@ -148,7 +114,7 @@ async function main() {
   console.log(`   contractAddress: ${deployment.address}`);
   console.log(`   network:         ${network}`);
 
-  await wallet.stop();
+  await walletCtx.wallet.stop();
   process.exit(0);
 }
 

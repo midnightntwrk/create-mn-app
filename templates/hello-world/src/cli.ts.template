@@ -7,7 +7,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocket } from 'ws';
-import * as Rx from 'rxjs';
 import { Buffer } from 'buffer';
 
 // Midnight SDK imports
@@ -16,15 +15,8 @@ import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
-import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { resolveNetwork, getOrCreateSeed, getDeployment } from './network';
-import * as ledger from '@midnight-ntwrk/ledger-v8';
-import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
-import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
-import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
-import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
-import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
-import { createKeystore, NoOpTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { createWallet, persistWalletState, unshieldedToken, type WalletContext } from './wallet';
 import { CompiledContract } from '@midnight-ntwrk/compact-js';
 
 // Enable WebSocket for GraphQL subscriptions
@@ -32,7 +24,6 @@ import { CompiledContract } from '@midnight-ntwrk/compact-js';
 globalThis.WebSocket = WebSocket;
 
 const { network, config: networkConfig } = resolveNetwork();
-setNetworkId(networkConfig.networkId);
 const SEED = getOrCreateSeed(network);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,46 +45,9 @@ const compiledContract = CompiledContract.make('hello-world', HelloWorld.Contrac
   CompiledContract.withCompiledFileAssets(zkConfigPath),
 );
 
-// ─── Wallet Functions ──────────────────────────────────────────────────────────
+// ─── Providers ─────────────────────────────────────────────────────────────────
 
-function deriveKeys(seed: string) {
-  const hdWallet = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
-  if (hdWallet.type !== 'seedOk') throw new Error('Invalid seed');
-  const result = hdWallet.hdWallet.selectAccount(0).selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust]).deriveKeysAt(0);
-  if (result.type !== 'keysDerived') throw new Error('Key derivation failed');
-  hdWallet.hdWallet.clear();
-  return result.keys;
-}
-
-async function createWallet(seed: string) {
-  const keys = deriveKeys(seed);
-  const networkId = getNetworkId();
-  const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
-  const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
-  const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], networkId);
-
-  const walletConfig = {
-    networkId,
-    indexerClientConnection: { indexerHttpUrl: networkConfig.indexer, indexerWsUrl: networkConfig.indexerWS },
-    provingServerUrl: new URL(networkConfig.proofServer),
-    relayURL: new URL(networkConfig.node.replace(/^http/, 'ws')),
-    txHistoryStorage: new NoOpTransactionHistoryStorage(),
-    costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
-  };
-
-  const wallet = await WalletFacade.init({
-    configuration: walletConfig,
-    shielded: async (config) => ShieldedWallet(config).startWithSecretKeys(shieldedSecretKeys),
-    unshielded: async (config) => UnshieldedWallet(config).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
-    dust: async (config) => DustWallet(config).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
-  });
-
-  await wallet.start(shieldedSecretKeys, dustSecretKey);
-
-  return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
-}
-
-async function createProviders(walletCtx: ReturnType<typeof createWallet> extends Promise<infer T> ? T : never) {
+async function createProviders(walletCtx: WalletContext) {
   // The SDK requires the private-state password to be at least 16 characters.
   // The default below is a placeholder for local devnet only — set a strong
   // password via PRIVATE_STATE_PASSWORD when you move to a non-local target.
@@ -157,7 +111,11 @@ async function main() {
     const seed = SEED;
 
     console.log('  Connecting to wallet...');
-    const walletCtx = await createWallet(seed);
+    const walletCtx = await createWallet({ network, networkConfig, seed });
+    const restoredCount = Object.values(walletCtx.restored).filter(Boolean).length;
+    if (restoredCount > 0) {
+      console.log(`  Restored ${restoredCount}/3 child wallets from .midnight-wallet-state — sync will resume from saved point.`);
+    }
 
     console.log('  Syncing with network...');
     console.log('  ℹ  This may take several minutes depending on network size.');
@@ -170,6 +128,9 @@ async function main() {
     const state = await walletCtx.wallet.waitForSyncedState();
     clearInterval(syncInterval);
     process.stdout.write('\r  ✓ Synced with network.                                      \n');
+
+    // Persist sync state so the next run doesn't have to redo this work.
+    await persistWalletState(network, walletCtx);
     const balance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
     console.log(`  Balance: ${balance.toLocaleString()} tNight\n`);
 
@@ -258,6 +219,7 @@ async function main() {
       }
     }
 
+    await persistWalletState(network, walletCtx);
     await walletCtx.wallet.stop();
   } catch (error) {
     console.error('\n❌ Error:', error instanceof Error ? error.message : error);
