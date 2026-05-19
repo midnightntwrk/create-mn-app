@@ -2,19 +2,11 @@
  * Check wallet balance on the local Midnight devnet
  */
 import { WebSocket } from 'ws';
-import * as Rx from 'rxjs';
-import { Buffer } from 'buffer';
 
 // Midnight SDK imports
-import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-import * as ledger from '@midnight-ntwrk/ledger-v8';
 import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
-import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
-import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
-import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
-import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
-import { createKeystore, NoOpTransactionHistoryStorage, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
 import { resolveNetwork, getOrCreateSeed } from './network';
+import { createWallet, persistWalletState } from './wallet';
 
 // Enable WebSocket for GraphQL subscriptions
 // @ts-expect-error Required for wallet sync
@@ -23,47 +15,7 @@ globalThis.WebSocket = WebSocket;
 // ─── Network configuration ─────────────────────────────────────────────────────
 
 const { network, config: networkConfig } = resolveNetwork();
-setNetworkId(networkConfig.networkId);
 const SEED = getOrCreateSeed(network);
-
-// ─── Wallet Functions ──────────────────────────────────────────────────────────
-
-function deriveKeys(seed: string) {
-  const hdWallet = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
-  if (hdWallet.type !== 'seedOk') throw new Error('Invalid seed');
-  const result = hdWallet.hdWallet.selectAccount(0).selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust]).deriveKeysAt(0);
-  if (result.type !== 'keysDerived') throw new Error('Key derivation failed');
-  hdWallet.hdWallet.clear();
-  return result.keys;
-}
-
-async function createWallet(seed: string) {
-  const keys = deriveKeys(seed);
-  const networkId = getNetworkId();
-  const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
-  const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
-  const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], networkId);
-
-  const walletConfig = {
-    networkId,
-    indexerClientConnection: { indexerHttpUrl: networkConfig.indexer, indexerWsUrl: networkConfig.indexerWS },
-    provingServerUrl: new URL(networkConfig.proofServer),
-    relayURL: new URL(networkConfig.node.replace(/^http/, 'ws')),
-    txHistoryStorage: new NoOpTransactionHistoryStorage(),
-    costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
-  };
-
-  const wallet = await WalletFacade.init({
-    configuration: walletConfig,
-    shielded: async (config) => ShieldedWallet(config).startWithSecretKeys(shieldedSecretKeys),
-    unshielded: async (config) => UnshieldedWallet(config).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
-    dust: async (config) => DustWallet(config).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
-  });
-
-  await wallet.start(shieldedSecretKeys, dustSecretKey);
-
-  return { wallet, unshieldedKeystore };
-}
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
@@ -72,11 +24,13 @@ async function main() {
   console.log('║                   Wallet Balance Checker                      ║');
   console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
-  const seed = SEED;
-
   try {
     console.log('  Building wallet...');
-    const { wallet, unshieldedKeystore } = await createWallet(seed);
+    const walletCtx = await createWallet({ network, networkConfig, seed: SEED });
+    const restoredCount = Object.values(walletCtx.restored).filter(Boolean).length;
+    if (restoredCount > 0) {
+      console.log(`  Restored ${restoredCount}/3 child wallets from .midnight-wallet-state — sync will resume from saved point.`);
+    }
 
     console.log('  Syncing with network...');
     console.log('  ℹ  This may take several minutes depending on network size.');
@@ -86,11 +40,11 @@ async function main() {
       const elapsed = Math.round((Date.now() - syncStart) / 1000);
       process.stdout.write(`\r  ⏳ Still syncing... (${elapsed}s elapsed)   `);
     }, 5000);
-    const state = await wallet.waitForSyncedState();
+    const state = await walletCtx.wallet.waitForSyncedState();
     clearInterval(syncInterval);
     process.stdout.write('\r  ✓ Synced with network.                                      \n');
 
-    const address = unshieldedKeystore.getBech32Address();
+    const address = walletCtx.unshieldedKeystore.getBech32Address();
     const tNightBalance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
     const dustBalance = state.dust.balance(new Date());
 
@@ -117,7 +71,8 @@ async function main() {
       console.log('  ✅ Wallet is funded and ready!\n');
     }
 
-    await wallet.stop();
+    await persistWalletState(network, walletCtx);
+    await walletCtx.wallet.stop();
   } catch (error) {
     console.error('\n❌ Error:', error instanceof Error ? error.message : error);
     process.exit(1);

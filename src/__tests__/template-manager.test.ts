@@ -36,6 +36,10 @@ describe("TemplateManager", () => {
     expect(fs.existsSync(path.join(targetDir, "src", "deploy.ts"))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, "src", "cli.ts"))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, "src", "network.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, "src", "wallet.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, "src", "wallet-state.ts"))).toBe(
+      true,
+    );
     expect(fs.existsSync(path.join(targetDir, "src", "setup.ts"))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, "scripts", "e2e-check.ts"))).toBe(
       true,

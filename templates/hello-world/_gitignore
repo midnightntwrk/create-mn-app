@@ -55,3 +55,6 @@ temp/
 
 # Midnight network state (per-network seeds, deploy addresses)
 .midnight-state.json
+
+# Midnight wallet sync state (per-network serialized wallet state cache)
+.midnight-wallet-state/

@@ -128,6 +128,19 @@ npm run network undeployed     # or: npm run setup -- --network undeployed
 Your preview/preprod wallet seeds and deploy addresses stay in
 `.midnight-state.json`. Switch back later, and they're still there.
 
+### Wallet sync cache
+
+After each `deploy`, `cli`, or `check-balance` run, the scripts serialize the
+wallet's synced state to `.midnight-wallet-state/<network>/` (gitignored).
+The next run on the same network restores from that snapshot and only catches
+up to the latest block instead of replaying from genesis — meaningful on
+`preview` / `preprod` where a from-seed sync takes minutes.
+
+If the cache is stale or corrupt (e.g. after an SDK upgrade with an
+incompatible state format) the wallet falls back to a fresh from-seed sync
+with a one-line warning. `npm run clean` removes the cache along with other
+generated state.
+
 ## Available scripts
 
 | Script                  | Description                                                    |
@@ -138,7 +151,7 @@ Your preview/preprod wallet seeds and deploy addresses stay in
 | `npm run cli`           | Interactive CLI to call circuits on the deployed contract.     |
 | `npm run check-balance` | Print the genesis-seed wallet's NIGHT and DUST balances.       |
 | `npm run test:e2e`      | Smoke + read-back check against the deployed contract.         |
-| `npm run clean`         | Remove `contracts/managed/` and `.midnight-state.json`.        |
+| `npm run clean`         | Remove `contracts/managed/`, `.midnight-state.json`, and `.midnight-wallet-state/`. |
 | `npm run proof-server:start` / `:stop` | Compose lifecycle for just the proof-server service. |
 
 ## Project structure
@@ -151,12 +164,14 @@ Your preview/preprod wallet seeds and deploy addresses stay in
 │   └── e2e-check.ts            # smoke + read-back
 ├── src/
 │   ├── network.ts              # network selection + state file management
+│   ├── wallet.ts               # wallet construction + sync-state cache
 │   ├── setup.ts                # orchestrator for `npm run setup`
 │   ├── deploy.ts               # deploy the contract
 │   ├── cli.ts                  # interact with deployed contract
 │   └── check-balance.ts        # NIGHT / DUST balance
 ├── docker-compose.yml          # node + indexer + proof-server
 ├── .midnight-state.json        # written by deploy (gitignored)
+├── .midnight-wallet-state/     # serialized sync state per network (gitignored)
 ├── package.json
 └── tsconfig.json
 ```
