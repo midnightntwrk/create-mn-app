@@ -6,6 +6,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 export type NetworkId = 'undeployed' | 'preview' | 'preprod';
 
@@ -277,7 +278,7 @@ function isMain(): boolean {
   // import.meta.url is a `file://` URL; argv[1] is a filesystem path.
   // Compare resolved paths to handle symlinks/aliases.
   try {
-    const here = new URL(import.meta.url).pathname;
+    const here = fileURLToPath(import.meta.url);
     const invoked = process.argv[1] && fs.realpathSync(process.argv[1]);
     return invoked === fs.realpathSync(here);
   } catch {
