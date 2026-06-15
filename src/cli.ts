@@ -40,7 +40,7 @@ program
   .argument("[project-directory]", "Directory name for your project")
   .option(
     "-t, --template <name>",
-    "Template to use (hello-world, counter, bboard, dex, midnight-kitties)",
+    "Template to use (hello-world, battleship, bboard, leaderboard, dex, midnight-kitties)",
   )
   .option("--use-npm", "Use npm explicitly")
   .option("--use-yarn", "Use yarn explicitly")

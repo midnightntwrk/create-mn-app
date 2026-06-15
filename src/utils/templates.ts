@@ -69,19 +69,21 @@ export const templates: Template[] = [
     category: "contract",
   },
   {
-    name: "counter",
-    display: "Counter DApp",
-    description: "Increment/decrement app demonstrating state management",
+    name: "battleship",
+    display: "Battleship",
+    description:
+      "State-machine game contract with private board state, verified via local devnet tests",
     available: true,
     type: "remote",
-    category: "dapp",
-    repo: "midnightntwrk/example-counter",
+    category: "contract",
+    repo: "midnightntwrk/example-battleship",
     nodeVersion: 22,
     requiresCompactCompiler: true,
     compactVersion: "0.31.0",
     projectStructure: [
-      "contract/     smart contract (compact)",
-      "counter-cli/  cli interface",
+      "contract/  smart contract (compact) + witnesses",
+      "src/       midnight-js integration and test suite",
+      "scripts/   local devnet helpers",
     ],
     setupSteps: [
       {
@@ -89,26 +91,23 @@ export const templates: Template[] = [
         commands: [
           "cd {{projectName}}",
           "{{installCmd}}",
-          "cd contract && {{runCmd}} compact && {{runCmd}} build",
-          "cd ../counter-cli && {{runCmd}} build",
+          "{{runCmd}} compile",
         ],
         note: "downloads ~500MB zk parameters on first run",
       },
       {
-        title: "Proof Server",
-        commands: [
-          "docker run -d -p 6300:6300 -e PORT=6300 midnightntwrk/proof-server:8.0.3",
-        ],
-        note: "runs in background",
+        title: "Start Local Devnet",
+        commands: ["{{runCmd}} env:up"],
+        note: "starts node, indexer, and proof server via Docker (requires Docker running)",
       },
       {
-        title: "Run Application",
-        commands: ["cd counter-cli && {{runCmd}} start"],
+        title: "Run Tests",
+        commands: ["{{runCmd}} test:local"],
+        note: "deploys the contract and plays a full game programmatically\ntakes a few minutes on first run",
       },
       {
-        title: "Important",
-        commands: [],
-        note: "create wallet and fund from faucet\nPreprod faucet: https://faucet.preprod.midnight.network/\nfunding takes 2-3 minutes\nsee README.md for detailed guide",
+        title: "Stop Local Devnet",
+        commands: ["{{runCmd}} env:down"],
       },
     ],
   },
@@ -163,7 +162,55 @@ export const templates: Template[] = [
       {
         title: "Important",
         commands: [],
-        note: "create wallet and fund from faucet\nPreprod faucet: https://faucet.preprod.midnight.network/\nfunding takes 2-3 minutes\nsee README.md for detailed guide",
+        note: "create wallet and fund from faucet\nPreprod faucet: https://midnight-tmnight-preprod.nethermind.dev/\nfunding takes 2-3 minutes\nsee README.md for detailed guide",
+      },
+    ],
+  },
+  {
+    name: "leaderboard",
+    display: "Arcade Leaderboard",
+    description:
+      "Privacy-preserving leaderboard with a React + Lace browser DApp and in-browser ZK proving",
+    available: true,
+    type: "remote",
+    category: "dapp",
+    repo: "midnightntwrk/midnight-leaderboard",
+    nodeVersion: 22,
+    requiresCompactCompiler: true,
+    compactVersion: "0.31.0",
+    projectStructure: [
+      "contract/         smart contract (compact) + witnesses",
+      "api/              shared business logic",
+      "leaderboard-ui/   react + vite frontend",
+      "proof-server/     production proof server (railway)",
+    ],
+    setupSteps: [
+      {
+        title: "Build",
+        commands: [
+          "cd {{projectName}}",
+          "{{installCmd}}",
+          "{{runCmd}} compile",
+          "{{runCmd}} build",
+        ],
+        note: "npm workspaces (contract, api, leaderboard-ui)\ndownloads ~500MB zk parameters on first run",
+      },
+      {
+        title: "Proof Server",
+        commands: [
+          "docker run -d -p 6300:6300 midnightntwrk/proof-server:8.0.3 -- midnight-proof-server --network preprod",
+        ],
+        note: "runs in background",
+      },
+      {
+        title: "Run Web UI",
+        commands: ["cd leaderboard-ui && {{runCmd}} dev"],
+        note: "open http://localhost:3000 in Chrome with the Lace wallet extension",
+      },
+      {
+        title: "Important",
+        commands: [],
+        note: "create wallet and fund from faucet\nPreprod faucet: https://midnight-tmnight-preprod.nethermind.dev/\nfunding takes 2-3 minutes\nsee README.md for detailed guide",
       },
     ],
   },
@@ -181,12 +228,12 @@ export const templates: Template[] = [
     name: "midnight-kitties",
     display: "Midnight Kitties",
     description:
-      "Full stack DApp using NFT smart contract library (Crypto Kitties on Midnight)",
+      "Full stack CryptoKitties NFT DApp (breeding + marketplace) using an external NFT module — pending upgrade to the current Midnight stack",
     available: false,
     comingSoon: true,
     type: "remote",
     category: "dapp",
-    repo: "midnightntwrk/midnight-kitties",
+    repo: "midnightntwrk/example-kitties",
   },
 ];
 

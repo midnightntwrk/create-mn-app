@@ -53,8 +53,8 @@ This DApp supports three networks:
 | Network | When to use | Default? |
 |---|---|---|
 | `undeployed` | Local devnet bundled in `docker-compose.yml`. Genesis seed is hardcoded; no funding needed. | yes |
-| `preview` | Public preview testnet. Faucet at `https://faucet.preview.midnight.network`. |  |
-| `preprod` | Public preprod testnet. Faucet at `https://faucet.preprod.midnight.network`. |  |
+| `preview` | Public preview testnet. Faucet at `https://midnight-tmnight-preview.nethermind.dev`. |  |
+| `preprod` | Public preprod testnet. Faucet at `https://midnight-tmnight-preprod.nethermind.dev`. |  |
 
 The active network is **sticky**: whichever network you last interacted
 with stays active until you switch. Any command run with `--network <name>`

@@ -35,3 +35,6 @@ coverage/
 
 # Local planning artifacts (superpowers)
 docs/superpowers/
+
+# Midnight expert plugin workspace (local tooling/verification artifacts)
+.midnight-expert/

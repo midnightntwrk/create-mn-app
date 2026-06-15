@@ -12,7 +12,7 @@ import {
 describe("getAllTemplates", () => {
   it("returns all templates including coming soon", () => {
     const templates = getAllTemplates();
-    expect(templates.length).toBeGreaterThanOrEqual(5);
+    expect(templates.length).toBeGreaterThanOrEqual(4);
     expect(templates.some((t) => t.comingSoon)).toBe(true);
   });
 });
@@ -39,7 +39,7 @@ describe("getTemplate", () => {
   });
 
   it("returns remote template by name", () => {
-    const template = getTemplate("counter");
+    const template = getTemplate("bboard");
     expect(template).toBeDefined();
     expect(template!.type).toBe("remote");
     expect(template!.repo).toBeDefined();
@@ -53,7 +53,7 @@ describe("getTemplate", () => {
 describe("isValidTemplate", () => {
   it("returns true for available templates", () => {
     expect(isValidTemplate("hello-world")).toBe(true);
-    expect(isValidTemplate("counter")).toBe(true);
+    expect(isValidTemplate("bboard")).toBe(true);
   });
 
   it("returns false for coming soon templates", () => {
