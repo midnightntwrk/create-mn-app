@@ -46,8 +46,8 @@ The bundled `hello-world` template runs against three networks. Local devnet is 
 | Network      | Source                                                            | When to use                                              |
 | ------------ | ----------------------------------------------------------------- | -------------------------------------------------------- |
 | `undeployed` | Local devnet from `docker-compose.yml`                            | Default. Iterate fast, no funding, no extension needed.  |
-| `preview`    | Public preview testnet ([faucet](https://faucet.preview.midnight.network/)) | Test against shared infra before a release.              |
-| `preprod`    | Public preprod testnet ([faucet](https://faucet.preprod.midnight.network/)) | Validate against the network closest to mainnet.         |
+| `preview`    | Public preview testnet ([faucet](https://midnight-tmnight-preview.nethermind.dev/)) | Test against shared infra before a release.              |
+| `preprod`    | Public preprod testnet ([faucet](https://midnight-tmnight-preprod.nethermind.dev/)) | Validate against the network closest to mainnet.         |
 
 Switch network on a single command:
 
@@ -127,8 +127,8 @@ Issues and pull requests welcome at [github.com/midnightntwrk/create-mn-app](htt
 
 - [Midnight Docs](https://docs.midnight.network)
 - [Discord](https://discord.com/invite/midnightnetwork)
-- [Preview Faucet](https://faucet.preview.midnight.network/)
-- [Preprod Faucet](https://faucet.preprod.midnight.network/)
+- [Preview Faucet](https://midnight-tmnight-preview.nethermind.dev/)
+- [Preprod Faucet](https://midnight-tmnight-preprod.nethermind.dev/)
 
 ## License
 

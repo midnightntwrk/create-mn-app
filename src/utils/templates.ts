@@ -162,7 +162,7 @@ export const templates: Template[] = [
       {
         title: "Important",
         commands: [],
-        note: "create wallet and fund from faucet\nPreprod faucet: https://faucet.preprod.midnight.network/\nfunding takes 2-3 minutes\nsee README.md for detailed guide",
+        note: "create wallet and fund from faucet\nPreprod faucet: https://midnight-tmnight-preprod.nethermind.dev/\nfunding takes 2-3 minutes\nsee README.md for detailed guide",
       },
     ],
   },
@@ -210,7 +210,7 @@ export const templates: Template[] = [
       {
         title: "Important",
         commands: [],
-        note: "create wallet and fund from faucet\nPreprod faucet: https://faucet.preprod.midnight.network/\nfunding takes 2-3 minutes\nsee README.md for detailed guide",
+        note: "create wallet and fund from faucet\nPreprod faucet: https://midnight-tmnight-preprod.nethermind.dev/\nfunding takes 2-3 minutes\nsee README.md for detailed guide",
       },
     ],
   },
