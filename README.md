@@ -13,7 +13,7 @@ Scaffold a Midnight Network DApp project. One command bootstraps a contract, a l
 | ---------------- | -------- | ------------------------------------------------------ |
 | Node.js          | 22+      |                                                        |
 | Docker           | Compose v2 | Runs the local devnet and proof server               |
-| Compact compiler | 0.31.0   | Required for `counter` and `bboard`; the CLI offers to install it for you |
+| Compact compiler | 0.31.0   | Required for the remote examples (`battleship`, `bboard`, `leaderboard`); the CLI offers to install it for you |
 
 ## Quick Start
 
@@ -73,7 +73,7 @@ Pick a template interactively, or pass `--template`:
 
 ```bash
 npx create-mn-app@latest my-app                    # interactive picker
-npx create-mn-app@latest my-app --template counter # skip the prompts
+npx create-mn-app@latest my-app --template bboard  # skip the prompts
 npx create-mn-app@latest my-app --list             # show every template
 ```
 
@@ -84,13 +84,14 @@ npx create-mn-app@latest my-app --list             # show every template
 | Template                | What it is                                                              |
 | ----------------------- | ----------------------------------------------------------------------- |
 | `hello-world` (default) | Bundled. Local devnet + message-storage contract. The fastest path to a working deploy. |
+| `battleship`            | State-machine game contract with private board state, verified end-to-end via local-devnet tests. Cloned from [`example-battleship`](https://github.com/midnightntwrk/example-battleship). |
 
 ### Full DApp
 
-| Template  | What it is                                                                                                |
-| --------- | --------------------------------------------------------------------------------------------------------- |
-| `counter` | Increment/decrement contract with ZK proofs. Cloned from [`example-counter`](https://github.com/midnightntwrk/example-counter). |
-| `bboard`  | Multi-user bulletin board demonstrating privacy patterns. Cloned from [`example-bboard`](https://github.com/midnightntwrk/example-bboard). |
+| Template            | What it is                                                                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------------- |
+| `bboard` (default)  | Multi-user bulletin board demonstrating privacy patterns. The go-to DApp example. Cloned from [`example-bboard`](https://github.com/midnightntwrk/example-bboard). |
+| `leaderboard`       | Privacy-preserving arcade leaderboard with a React + Lace browser DApp and in-browser ZK proving. Cloned from [`midnight-leaderboard`](https://github.com/midnightntwrk/midnight-leaderboard). |
 
 The DApp templates clone an upstream example and configure it for the pinned compiler. They follow the upstream project's setup flow — see the cloned repo's README after scaffolding.
 
@@ -104,7 +105,7 @@ npx create-mn-app@latest [project-directory] [options]
 
 | Option                                          | Description                                       |
 | ----------------------------------------------- | ------------------------------------------------- |
-| `-t, --template <name>`                         | `hello-world`, `counter`, `bboard`                |
+| `-t, --template <name>`                         | `hello-world`, `battleship`, `bboard`, `leaderboard` |
 | `--list`                                        | List all templates and exit                       |
 | `--from <owner/repo>`                           | Scaffold from any GitHub repository               |
 | `-y, --yes`                                     | Accept defaults; non-interactive                  |

@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`battleship` template** — state-machine game contract with private board state, verified end-to-end via a local devnet (`yarn env:up` → `yarn test:local`). Cloned from [midnightntwrk/example-battleship](https://github.com/midnightntwrk/example-battleship)
+- **`leaderboard` template** — privacy-preserving arcade leaderboard with a React + Lace browser DApp and in-browser ZK proving. Cloned from [midnightntwrk/midnight-leaderboard](https://github.com/midnightntwrk/midnight-leaderboard)
+
+### Changed
+
+- **Removed the `counter` template** — no longer the recommended starter; `bboard` is now the go-to DApp example. The upstream repo still exists and remains reachable via `--from midnightntwrk/example-counter`
+- **Repointed the coming-soon `midnight-kitties` entry** to [midnightntwrk/example-kitties](https://github.com/midnightntwrk/example-kitties); kept coming-soon because its stack (midnight-js 2.0.2, ledger 4.0.0) is incompatible with the current network and won't run end-to-end yet
+- **Docs aligned** — README and CONTRIBUTING template tables, category examples, compiler version (0.31.0), and proof-server image (8.0.3) updated to match the current template set
+
+### Removed
+
+- **`.midnight-expert/` added to `.gitignore`** — local plugin/verification workspace is no longer tracked
+
+## [0.4.1] - 2026-05-20
+
+### Fixed
+
+- **Wallet sync state persistence** — `hello-world` now persists wallet sync state across runs so repeated `setup`/`cli` invocations don't re-sync from scratch
+
+## [0.4.0] - 2026-05-11
+
+### Added
+
+- **Bundled local devnet** — `hello-world` ships a `docker-compose.yml` running node + indexer + proof-server with a pre-funded genesis seed, so `npm run setup` deploys end-to-end with no faucet or wallet extension
+- **`--network` flag** — `setup` accepts `--network preview|preprod` (and `npm run network <name>` to set the active network) for targeting the public testnets
+
+### Changed
+
+- **Default deploy flow is now local-first** — the `undeployed` local devnet is the default target; preview/preprod are opt-in via the network flag
+
+## [0.3.28] - 2026-04-14
+
+### Added
+
+- **Network sync progress feedback** — `hello-world` templates now surface wallet/network sync progress during setup
+
+## [0.3.27] - 2026-04-13
+
+### Changed
+
+- **Ledger dependency upgraded v7 → v8** — `hello-world` template dependencies bumped to ledger v8, with wallet creation refactored accordingly
+- **`package.json.template` dependencies updated** to match the v8 stack
+- **Renovate enabled** — added `renovate.json` for automated dependency updates
+
+### Fixed
+
+- **Type compatibility with ledger v8** — cast `compiledContract` in the `deployContract` call and CLI template to resolve type mismatches introduced by the upgrade
+
 ## [0.3.26] - 2026-03-24
 
 ### Changed
