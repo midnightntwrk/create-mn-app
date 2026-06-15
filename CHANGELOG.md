@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.2] - 2026-06-15
 
 ### Added
 
@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Removed the `counter` template** — no longer the recommended starter; `bboard` is now the go-to DApp example. The upstream repo still exists and remains reachable via `--from midnightntwrk/example-counter`
 - **Repointed the coming-soon `midnight-kitties` entry** to [midnightntwrk/example-kitties](https://github.com/midnightntwrk/example-kitties); kept coming-soon because its stack (midnight-js 2.0.2, ledger 4.0.0) is incompatible with the current network and won't run end-to-end yet
+- **Faucet links point to Nethermind** — preview/preprod faucet URLs updated from the retired STL hosts to the Nethermind testnet faucets (`midnight-tmnight-preview.nethermind.dev`, `midnight-tmnight-preprod.nethermind.dev`) across docs, the `hello-world` network config, and remote-template setup notes
 - **Docs aligned** — README and CONTRIBUTING template tables, category examples, compiler version (0.31.0), and proof-server image (8.0.3) updated to match the current template set
 
 ### Removed
