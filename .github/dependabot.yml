@@ -5,6 +5,14 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    ignore:
+      # chalk@5 and ora@6+ are ESM-only ("type": "module"); this package
+      # compiles to CommonJS, so major bumps break `require()` at runtime.
+      # Pin to the last CJS-compatible majors (chalk 4.x, ora 5.x).
+      - dependency-name: "chalk"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "ora"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
