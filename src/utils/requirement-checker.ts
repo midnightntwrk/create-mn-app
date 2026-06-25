@@ -14,6 +14,7 @@
 // limitations under the License.
 
 import { execSync } from "child_process";
+import net from "net";
 import chalk from "chalk";
 
 export interface RequirementCheck {
@@ -44,18 +45,37 @@ export class RequirementChecker {
   }
 
   /**
-   * Check Docker availability
+   * Check Docker availability and daemon status.
+   * Verifies both that the Docker binary is present and that the daemon is running.
    */
   static checkDocker(): RequirementCheck {
     try {
       const version = execSync("docker --version", {
         encoding: "utf-8",
       }).trim();
+
+      // Binary exists — now verify daemon is actually running
+      let daemonRunning = false;
+      let daemonWarning: string | undefined;
+      try {
+        execSync("docker info", {
+          encoding: "utf-8",
+          stdio: "pipe",
+          timeout: 5000,
+        });
+        daemonRunning = true;
+      } catch {
+        daemonRunning = false;
+        daemonWarning =
+          "Docker is installed, but the daemon is not running. Start Docker Desktop before continuing.";
+      }
+
       return {
         name: "Docker",
         required: true,
-        found: true,
+        found: daemonRunning,
         version: version.split(" ")[2]?.replace(",", ""),
+        warning: daemonWarning,
         installUrl: "https://docs.docker.com/desktop/",
       };
     } catch {
@@ -66,6 +86,48 @@ export class RequirementChecker {
         installUrl: "https://docs.docker.com/desktop/",
       };
     }
+  }
+
+  /**
+   * Check whether a TCP port on localhost is already occupied.
+   * Returns a warning if the port is in use so the caller can warn the user
+   * before the proof server fails to bind.
+   */
+  static async checkPortAvailable(port: number): Promise<RequirementCheck> {
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      const timeout = setTimeout(() => {
+        socket.destroy();
+        resolve({
+          name: `Port ${port}`,
+          required: false,
+          found: true,
+        });
+      }, 2000);
+
+      socket.on("connect", () => {
+        clearTimeout(timeout);
+        socket.destroy();
+        resolve({
+          name: `Port ${port}`,
+          required: false,
+          found: true,
+          warning: `Port ${port} is already in use. The proof server may fail to start. Stop the occupying process or configure a different port.`,
+        });
+      });
+
+      socket.on("error", () => {
+        clearTimeout(timeout);
+        // Connection refused / timeout = port is free
+        resolve({
+          name: `Port ${port}`,
+          required: false,
+          found: true,
+        });
+      });
+
+      socket.connect(port, "127.0.0.1");
+    });
   }
 
   /**

@@ -720,6 +720,9 @@ async function createRemoteTemplate(
       );
     }
 
+    // Warn if proof server port is already occupied
+    checks.push(await RequirementChecker.checkPortAvailable(6300));
+
     const allPassed = RequirementChecker.displayResults(checks);
 
     if (!allPassed) {
