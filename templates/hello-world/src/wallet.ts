@@ -6,19 +6,25 @@
 
 import { Buffer } from 'buffer';
 
-import * as ledger from '@midnight-ntwrk/ledger-v8';
-import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
+// Ledger types now come from the midnight-js-protocol barrel, which re-exports
+// ledger-v8 (8.1.0) under a stable subpath instead of depending on it directly.
+import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
-import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
-import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
-import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
+// As of Midnight.js 4.1.x / ledger-v8 8.1.0 the wallet SDK is consolidated behind
+// the single @midnight-ntwrk/wallet-sdk barrel, which re-exports the former
+// wallet-sdk-facade / -hd / -shielded / -dust-wallet / -unshielded-wallet packages.
 import {
+  WalletFacade,
+  DustWallet,
+  HDWallet,
+  Roles,
+  ShieldedWallet,
   createKeystore,
   NoOpTransactionHistoryStorage,
   PublicKey,
   UnshieldedWallet,
-} from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+} from '@midnight-ntwrk/wallet-sdk';
 
 import type { NetworkConfig, NetworkId } from './network';
 import {

@@ -16,10 +16,13 @@ import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-pri
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { resolveNetwork, getOrCreateSeed, getDeployment } from '../src/network';
 import { createWallet, persistWalletState } from '../src/wallet';
-import { CompiledContract } from '@midnight-ntwrk/compact-js';
+import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 
 // @ts-expect-error wallet sync requires WebSocket
 globalThis.WebSocket = WebSocket;
+
+// Must match the privateStateId used at deploy time (witness-free → empty state).
+const PRIVATE_STATE_ID = 'helloWorldPrivateState';
 
 // ─── Network configuration ─────────────────────────────────────────────────────
 
@@ -58,15 +61,16 @@ async function main() {
   );
 
   const walletCtx = await createWallet({ network, networkConfig, seed: SEED });
-  const state = await walletCtx.wallet.waitForSyncedState();
+  await walletCtx.wallet.waitForSyncedState();
   // Persist the sync state — saves time on the next e2e-check invocation in CI
   // when run against the same persistent wallet directory.
   await persistWalletState(network, walletCtx);
 
   const zkConfigProvider = new NodeZkConfigProvider(zkConfigPath);
   const walletProvider = {
-    getCoinPublicKey: () => state.shielded.coinPublicKey.toHexString(),
-    getEncryptionPublicKey: () => state.shielded.encryptionPublicKey.toHexString(),
+    // Midnight.js 4.1.x returns the key objects (CoinPublicKey / EncPublicKey).
+    getCoinPublicKey: () => walletCtx.shieldedSecretKeys.coinPublicKey,
+    getEncryptionPublicKey: () => walletCtx.shieldedSecretKeys.encryptionPublicKey,
     async balanceTx() {
       throw new Error('e2e-check is read-only and should not balance transactions');
     },
@@ -95,6 +99,8 @@ async function main() {
     await findDeployedContract(providers, {
       contractAddress: deployment.address,
       compiledContract: compiledContract as any,
+      privateStateId: PRIVATE_STATE_ID,
+      initialPrivateState: {},
     });
   } catch (err: any) {
     await walletCtx.wallet.stop();

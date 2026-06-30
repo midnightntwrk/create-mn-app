@@ -4,9 +4,9 @@
 import { WebSocket } from 'ws';
 
 // Midnight SDK imports
-import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
 import { resolveNetwork, getOrCreateSeed } from './network';
-import { createWallet, persistWalletState } from './wallet';
+// unshieldedToken is re-exported from ./wallet (originally @midnight-ntwrk/midnight-js-protocol/ledger).
+import { createWallet, persistWalletState, unshieldedToken } from './wallet';
 
 // Enable WebSocket for GraphQL subscriptions
 // @ts-expect-error Required for wallet sync

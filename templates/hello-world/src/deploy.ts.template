@@ -18,10 +18,14 @@ import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
-import { CompiledContract } from '@midnight-ntwrk/compact-js';
+import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
+
+// Identifier under which this contract's private state is stored. The
+// hello-world contract has no witnesses, so its private state is empty ({}).
+const PRIVATE_STATE_ID = 'helloWorldPrivateState';
 
 // ─── Network configuration ─────────────────────────────────────────────────────
 //
@@ -84,21 +88,21 @@ async function createProviders(walletCtx: WalletContext) {
   // The default below is a placeholder for local devnet only — set a strong
   // password via PRIVATE_STATE_PASSWORD when you move to a non-local target.
   const privateStatePassword = process.env.PRIVATE_STATE_PASSWORD?.trim() || 'Local-Devnet-Development-Placeholder-1';
-  const state = await walletCtx.wallet.waitForSyncedState();
 
   const walletProvider = {
-    getCoinPublicKey: () => state.shielded.coinPublicKey.toHexString(),
-    getEncryptionPublicKey: () => state.shielded.encryptionPublicKey.toHexString(),
+    // In Midnight.js 4.1.x the WalletProvider interface returns the key objects
+    // (CoinPublicKey / EncPublicKey) directly — no longer hex strings.
+    getCoinPublicKey: () => walletCtx.shieldedSecretKeys.coinPublicKey,
+    getEncryptionPublicKey: () => walletCtx.shieldedSecretKeys.encryptionPublicKey,
     async balanceTx(tx: any, ttl?: Date) {
+      // balanceUnboundTransaction -> finalizeRecipe is the complete balancing
+      // path in wallet-sdk 1.x; the earlier explicit signRecipe step is gone.
       const recipe = await walletCtx.wallet.balanceUnboundTransaction(
         tx,
         { shieldedSecretKeys: walletCtx.shieldedSecretKeys, dustSecretKey: walletCtx.dustSecretKey },
         { ttl: ttl ?? new Date(Date.now() + 30 * 60 * 1000) },
       );
-      const signedRecipe = await walletCtx.wallet.signRecipe(recipe, (payload) =>
-        walletCtx.unshieldedKeystore.signData(payload),
-      );
-      return walletCtx.wallet.finalizeRecipe(signedRecipe);
+      return walletCtx.wallet.finalizeRecipe(recipe);
     },
     submitTx: (tx: any) => walletCtx.wallet.submitTransaction(tx) as any,
   };
@@ -279,9 +283,17 @@ async function main() {
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
+      // Midnight.js 4.1.x supplies private state via privateStateId +
+      // initialPrivateState (empty here — the hello-world contract has no
+      // witnesses). args is the contract constructor's arguments: empty for
+      // hello-world's no-arg constructor. (Statically-typed contracts can omit
+      // args entirely; this script loads the contract dynamically, so the
+      // conditional args type widens to any[] and an explicit [] is required.)
       deployed = await deployContract(providers, {
         compiledContract: compiledContract as any,
         args: [],
+        privateStateId: PRIVATE_STATE_ID,
+        initialPrivateState: {},
       });
       break;
     } catch (err: any) {

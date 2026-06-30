@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-06-30
+
+### Changed
+
+- **`hello-world` template upgraded to Midnight.js 4.1.1** — all `@midnight-ntwrk/midnight-js-*` packages bumped `4.0.4 → 4.1.1`, and `@midnight-ntwrk/ledger-v8` `8.0.3 → 8.1.0` (now pulled in transitively via `@midnight-ntwrk/midnight-js-protocol`)
+- **Consolidated the wallet SDK behind `@midnight-ntwrk/wallet-sdk`** — replaced the five granular `wallet-sdk-{facade,hd,shielded,dust-wallet,unshielded-wallet}` dependencies with the unified `@midnight-ntwrk/wallet-sdk` barrel (1.1.0), and moved ledger/compact type imports to the `@midnight-ntwrk/midnight-js-protocol/{ledger,compact-js}` subpaths, matching the current `example-hello-world` and `example-zkloan` layout
+- **Updated deploy/CLI/e2e scripts to the 4.1.x contract API** — `deployContract` and `findDeployedContract` pass `privateStateId` + `initialPrivateState`, the `WalletProvider` returns `CoinPublicKey`/`EncPublicKey` objects rather than hex strings, and transaction balancing drops the removed `signRecipe` step
+
+### Removed
+
+- **`.claude/` added to `.gitignore`** — local Claude Code config is no longer tracked
+
 ## [0.4.2] - 2026-06-15
 
 ### Added
