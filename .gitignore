@@ -38,3 +38,6 @@ docs/superpowers/
 
 # Midnight expert plugin workspace (local tooling/verification artifacts)
 .midnight-expert/
+
+# Claude Code local config
+.claude/
