@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-07-15
+
+### Changed
+
+- **`hello-world` local devnet moved to the node-1.0 stack** — `midnightntwrk/midnight-node` `0.22.5 → 1.0.0`, `indexer-standalone` `4.2.1 → 4.3.3`, `proof-server` `8.0.3 → 8.1.0` (now matching the `ledger-v8` 8.1.0 that Midnight.js 4.1.1 pins client-side, and the set upstream `example-hello-world` ships). Indexer 4.3.x's SPO component requires a Blockfrost ID at boot — a dummy value satisfies it for local dev (`APP__INFRA__SPO_NODE__BLOCKFROST_ID`), so the devnet stays zero-config
+- **`@midnight-ntwrk/wallet-sdk` `1.1.0 → 1.2.0`** — exact pin; note 1.2.0 is published on the hyphenated scope but not `latest`-tagged there, so the exact pin is load-bearing (an `@latest` install would still resolve 1.1.0)
+- **Proof-server now has a compose healthcheck** — the image is distroless but ships `/bin/sh` off-PATH, so a `CMD-SHELL` + `/dev/tcp` probe works; `docker compose up -d --wait` now gates on the proof-server actually listening (previously only node + indexer were gated, and the host-side `waitForProofServer` poll carried the whole burden — it remains as a second layer)
+- **Indexer restarts on failure** — `restart: on-failure` absorbs a startup race in indexer 4.3.3's SPO component, which exits 1 if it queries a fresh devnet before block 1 exists
+- **Compact compiler references bumped `0.31.0 → 0.31.1`** — `.compact-version`, remote-template metadata (`compactVersion` ×3), README, CONTRIBUTING
+- **`bboard`/`leaderboard` setup instructions now run `proof-server:8.1.0`** — matching the current preview/preprod compatibility matrix
+- **Dev-dependency floors refreshed** — `ws ^8.20.0 → ^8.21.1`, `tsx ^4.21.0 → ^4.23.1` (TypeScript intentionally stays on `^6.0.3`; 7.x is the native-port major and upstream examples remain on 5.x/6.x)
+
 ## [0.4.3] - 2026-06-30
 
 ### Changed

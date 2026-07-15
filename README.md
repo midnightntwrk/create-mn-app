@@ -13,7 +13,7 @@ Scaffold a Midnight Network DApp project. One command bootstraps a contract, a l
 | ---------------- | -------- | ------------------------------------------------------ |
 | Node.js          | 22+      |                                                        |
 | Docker           | Compose v2 | Runs the local devnet and proof server               |
-| Compact compiler | 0.31.0   | Required for the remote examples (`battleship`, `bboard`, `leaderboard`); the CLI offers to install it for you |
+| Compact compiler | 0.31.1   | Required for the remote examples (`battleship`, `bboard`, `leaderboard`); the CLI offers to install it for you |
 
 ## Quick Start
 

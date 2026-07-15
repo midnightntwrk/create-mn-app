@@ -79,7 +79,7 @@ export const templates: Template[] = [
     repo: "midnightntwrk/example-battleship",
     nodeVersion: 22,
     requiresCompactCompiler: true,
-    compactVersion: "0.31.0",
+    compactVersion: "0.31.1",
     projectStructure: [
       "contract/  smart contract (compact) + witnesses",
       "src/       midnight-js integration and test suite",
@@ -122,7 +122,7 @@ export const templates: Template[] = [
     repo: "midnightntwrk/example-bboard",
     nodeVersion: 22,
     requiresCompactCompiler: true,
-    compactVersion: "0.31.0",
+    compactVersion: "0.31.1",
     projectStructure: [
       "contract/     smart contract (compact)",
       "api/          shared api methods",
@@ -146,7 +146,7 @@ export const templates: Template[] = [
       {
         title: "Proof Server",
         commands: [
-          "docker run -d -p 6300:6300 -e PORT=6300 midnightntwrk/proof-server:8.0.3",
+          "docker run -d -p 6300:6300 -e PORT=6300 midnightntwrk/proof-server:8.1.0",
         ],
         note: "runs in background",
       },
@@ -177,7 +177,7 @@ export const templates: Template[] = [
     repo: "midnightntwrk/midnight-leaderboard",
     nodeVersion: 22,
     requiresCompactCompiler: true,
-    compactVersion: "0.31.0",
+    compactVersion: "0.31.1",
     projectStructure: [
       "contract/         smart contract (compact) + witnesses",
       "api/              shared business logic",
@@ -198,7 +198,7 @@ export const templates: Template[] = [
       {
         title: "Proof Server",
         commands: [
-          "docker run -d -p 6300:6300 midnightntwrk/proof-server:8.0.3 -- midnight-proof-server --network preprod",
+          "docker run -d -p 6300:6300 midnightntwrk/proof-server:8.1.0 -- midnight-proof-server --network preprod",
         ],
         note: "runs in background",
       },

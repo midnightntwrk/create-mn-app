@@ -5,31 +5,45 @@ name: {{kebabName}}-devnet
 
 services:
   node:
-    image: midnightntwrk/midnight-node:0.22.5
+    image: midnightntwrk/midnight-node:1.0.0
     container_name: {{kebabName}}-node
     ports:
       - "9944:9944"
     environment:
       CFG_PRESET: "dev"
       SIDECHAIN_BLOCK_BENEFICIARY: "04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e"
+    # Healthy means "producing blocks", not just "HTTP up": the probe asks
+    # for the hash of block 1 and fails until it exists. This matters because
+    # indexer-standalone 4.3.x's SPO component exits 1 if it connects while
+    # the chain is still at genesis ("block number 1 not found") — and
+    # `docker compose up --wait` fails outright the moment a container dies,
+    # so the indexer must not start until block 1 exists (depends_on below).
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sf -H 'Content-Type: application/json' -d '{\"id\":1,\"jsonrpc\":\"2.0\",\"method\":\"chain_getBlockHash\",\"params\":[1]}' http://localhost:9944 | grep -q '\"result\":\"0x'",
+        ]
       interval: 2s
       timeout: 5s
-      retries: 30
+      retries: 45
       start_period: 20s
 
   indexer:
-    # Pinned to 4.2.1, NOT 4.3.0+: indexer-standalone 4.3.0 introduced an SPO
-    # (Cardano Stake Pool Operator) indexer that hard-requires a Blockfrost API
-    # key (APP__INFRA__SPO_NODE__BLOCKFROST_ID) — the process exits 1 at boot
-    # if missing, and placeholder values are explicitly rejected. There is no
-    # opt-out flag. 4.2.1 is the latest tag without that dependency, so it is
-    # the latest viable image for a zero-config local devnet. Do not bump to
-    # 4.3.x without first wiring a Blockfrost credential into this compose file
-    # — that is unacceptable for a "first DApp on Midnight" experience.
-    image: midnightntwrk/indexer-standalone:4.2.1
+    # indexer-standalone 4.3.x ships an SPO (Cardano Stake Pool Operator)
+    # indexer whose config hard-requires a Blockfrost API key at boot — the
+    # process exits 1 without APP__INFRA__SPO_NODE__BLOCKFROST_ID (verified
+    # against 4.3.3 on 2026-07-15). A dummy value satisfies the config loader
+    # on a local devnet (upstream example-hello-world ships the same dummy),
+    # so no real Blockfrost credential is needed for zero-config local dev.
+    # Do NOT bump to 4.3.4/4.4.0: those tags are pre-alpha integration builds
+    # for the future ledger-9/node-2 line, not stable releases.
+    image: midnightntwrk/indexer-standalone:4.3.3
     container_name: {{kebabName}}-indexer
+    # The node healthcheck above guarantees block 1 exists before this
+    # container starts (see comment there). restart: on-failure is kept as a
+    # second layer for plain `docker compose up -d` flows without --wait.
+    restart: on-failure
     ports:
       - "8088:8088"
     environment:
@@ -40,6 +54,8 @@ services:
       APP__INFRA__PUB_SUB__PASSWORD: "indexer"
       APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD: "indexer"
       APP__INFRA__SECRET: "303132333435363738393031323334353637383930313233343536373839303132"
+      APP__INFRA__SPO_NODE__URL: "ws://node:9944"
+      APP__INFRA__SPO_NODE__BLOCKFROST_ID: "local-devnet-dummy-id"
     healthcheck:
       test: ["CMD-SHELL", "cat /var/run/indexer-standalone/running"]
       interval: 10s
@@ -51,20 +67,29 @@ services:
         condition: service_healthy
 
   proof-server:
-    # No healthcheck: the proof-server image is distroless (nix-built) and has
-    # no shell or curl/wget binaries inside, so `docker compose --wait` cannot
-    # gate on it. The deploy script polls the proof-server from the host side
+    # The proof-server image is distroless (nix-built): /bin/sh exists but is
+    # not on PATH and there is no curl/wget. The healthcheck below works
+    # because CMD-SHELL invokes /bin/sh directly and the probe uses the
+    # shell-builtin /dev/tcp redirect (verified on 8.1.0, 2026-07-15) — so
+    # `docker compose up -d --wait` now gates on the proof-server actually
+    # listening. The deploy script additionally polls it from the host side
     # before submitting transactions (see waitForProofServer in src/deploy.ts).
-    # Pinned to 8.0.3, NOT a 7.x: proof-server 7.x (all patches tested: 7.0.0
-    # through 7.0.3) hangs in proof generation on Apple Silicon Macs running
-    # Docker Desktop — the actix worker thread spins at 100% CPU forever after
-    # receiving /prove, with no log output, no memory growth, and no progress.
-    # The same image runs fine on x86_64 Linux. 8.0.3 fixed this; never bump
-    # downward into the 7.x line without re-validating on macOS arm64.
-    image: midnightntwrk/proof-server:8.0.3
+    # Pinned to 8.1.0 (matches the ledger-v8 8.1.0 that Midnight.js 4.1.1
+    # pins client-side). Never bump downward into the 7.x line: proof-server
+    # 7.x (all patches tested: 7.0.0 through 7.0.3) hangs in proof generation
+    # on Apple Silicon Macs running Docker Desktop — the actix worker thread
+    # spins at 100% CPU forever after receiving /prove, with no log output.
+    # Avoid 9.0.0-rc.x tags: pre-release.
+    image: midnightntwrk/proof-server:8.1.0
     container_name: {{kebabName}}-proof-server
     command: ["midnight-proof-server -v"]
     ports:
       - "6300:6300"
     environment:
       RUST_BACKTRACE: "full"
+    healthcheck:
+      test: ["CMD-SHELL", "echo > /dev/tcp/127.0.0.1/6300"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s

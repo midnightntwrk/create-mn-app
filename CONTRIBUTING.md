@@ -283,7 +283,7 @@ Want to add a new template to create-mn-app? Follow these steps:
 - **Working build** — the project must compile and run on Preprod
 - **README.md** — clear setup and usage instructions
 - **Node.js 22+** compatible
-- **Compact compiler** version 0.31.0+ (for contract/dapp templates)
+- **Compact compiler** version 0.31.1+ (for contract/dapp templates)
 
 ### Template Categories
 
@@ -310,7 +310,7 @@ Want to add a new template to create-mn-app? Follow these steps:
      repo: "midnightntwrk/example-your-template",
      nodeVersion: 22,
      requiresCompactCompiler: true,
-     compactVersion: "0.31.0",
+     compactVersion: "0.31.1",
      projectStructure: [
        "contract/     smart contract (compact)",
        "your-cli/     cli interface",
@@ -327,7 +327,7 @@ Want to add a new template to create-mn-app? Follow these steps:
        {
          title: "Proof Server",
          commands: [
-           "docker run -d -p 6300:6300 -e PORT=6300 midnightntwrk/proof-server:8.0.3",
+           "docker run -d -p 6300:6300 -e PORT=6300 midnightntwrk/proof-server:8.1.0",
          ],
        },
        {
