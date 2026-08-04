@@ -46,7 +46,7 @@ export class TemplateManager {
   private async copyTemplate(
     templatePath: string,
     projectPath: string,
-    templateVars: Record<string, any>,
+    templateVars: Record<string, string | number>,
   ): Promise<void> {
     const files = await fs.readdir(templatePath, { withFileTypes: true });
 

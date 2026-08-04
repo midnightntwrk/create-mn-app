@@ -18,7 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:smoke": "npm run build && node dist/test.js",
+    "test:smoke": "npm run build && tsx src/test.ts",
     "test-local": "npm run build && npm link && npx create-mn-app test-app",
     "clean": "rm -rf dist test-app",
     "lint": "eslint src/",
@@ -73,6 +73,7 @@
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.8.1",
+    "tsx": "^4.23.5",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
   },
