@@ -5,8 +5,11 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as crypto from 'node:crypto';
+import { Buffer } from 'node:buffer';
 import { fileURLToPath } from 'node:url';
+
+import { generateMnemonic, mnemonicToSeedSync, validateMnemonic } from '@scure/bip39';
+import { wordlist } from '@scure/bip39/wordlists/english.js';
 
 export type NetworkId = 'undeployed' | 'preview' | 'preprod';
 
@@ -28,10 +31,17 @@ export interface DeploymentRecord {
   deployer: string;
 }
 
+export interface WalletRecord {
+  seed: string;
+  /** BIP-39 recovery phrase. Absent on wallets created before mnemonic support. */
+  mnemonic?: string;
+  createdAt: string;
+}
+
 export interface NetworkState {
   version: 1;
   activeNetwork: NetworkId;
-  wallets: Partial<Record<NetworkId, { seed: string; createdAt: string }>>;
+  wallets: Partial<Record<NetworkId, WalletRecord>>;
   deployments: Partial<Record<NetworkId, DeploymentRecord>>;
 }
 
@@ -109,9 +119,10 @@ export function loadState(opts: FsOptions = {}): NetworkState | null {
 
 export function saveState(state: NetworkState, opts: FsOptions = {}): void {
   const p = statePath(opts);
-  // Write to a sibling tmp file then rename → atomic on POSIX.
+  // Write to a sibling tmp file then rename → atomic on POSIX. Owner-only
+  // mode: the file holds wallet secrets (seed + recovery phrase).
   const tmp = `${p}.tmp-${process.pid}-${Date.now()}`;
-  fs.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
+  fs.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
   fs.renameSync(tmp, p);
 }
 
@@ -197,25 +208,98 @@ export function resolveNetwork(opts: ResolveOptions = {}): ResolveResult {
 
 export const GENESIS_SEED = '0000000000000000000000000000000000000000000000000000000000000001';
 
+// ─── Wallet identity (BIP-39, Lace-compatible) ─────────────────────────────────
+//
+// Public-network wallets are mnemonic-first: a 24-word BIP-39 phrase whose
+// seed is derived with the standard mnemonicToSeed PBKDF2 step (empty
+// passphrase). Lace derives seeds the same way, so a phrase generated here
+// restores the identical wallet in Lace and vice versa.
+//
+// IMPORTANT: derivation must stay mnemonicToSeed (64-byte seed). Do NOT
+// switch to mnemonicToEntropy — it also "works" but derives a different
+// wallet from the same words, silently breaking Lace compatibility.
+
+export function normalizeMnemonic(mnemonic: string): string {
+  return mnemonic.trim().toLowerCase().split(/\s+/).join(' ');
+}
+
+/** Generate a new 24-word BIP-39 recovery phrase (256-bit entropy). */
+export function generateMnemonicPhrase(): string {
+  return generateMnemonic(wordlist, 256);
+}
+
+export function isValidMnemonic(mnemonic: string): boolean {
+  return validateMnemonic(normalizeMnemonic(mnemonic), wordlist);
+}
+
+/** Standard BIP-39 seed for a phrase: 64 bytes, returned as 128 hex chars. */
+export function mnemonicToSeedHex(mnemonic: string): string {
+  return Buffer.from(mnemonicToSeedSync(normalizeMnemonic(mnemonic))).toString('hex');
+}
+
+// BIP-32 master seeds must be 16-64 whole bytes → 32-128 hex chars in even
+// steps. Validating up front matters because Buffer.from(s, 'hex') silently
+// stops at the first invalid character, which would derive the wrong wallet
+// from a truncated paste instead of failing.
+const SEED_HEX_RE = /^(?:[0-9a-fA-F]{2}){16,64}$/;
+
 export interface SeedOptions {
   env?: NodeJS.ProcessEnv;
   cwd?: string;
 }
 
-export function getOrCreateSeed(network: NetworkId, opts: SeedOptions = {}): string {
+export interface WalletCredentials {
+  seed: string;
+  /** BIP-39 phrase when known; null for genesis, env-seed, and legacy wallets. */
+  mnemonic: string | null;
+  /** True when this call generated (and persisted) a brand-new wallet. */
+  created: boolean;
+}
+
+export function getOrCreateWallet(network: NetworkId, opts: SeedOptions = {}): WalletCredentials {
   const env = opts.env ?? process.env;
   const cwd = opts.cwd ?? process.cwd();
 
-  if (network === 'undeployed') return GENESIS_SEED;
+  if (network === 'undeployed') return { seed: GENESIS_SEED, mnemonic: null, created: false };
 
-  const fromEnv = env.MIDNIGHT_WALLET_SEED;
-  if (fromEnv) return fromEnv;
+  const envSeed = env.MIDNIGHT_WALLET_SEED;
+  const envMnemonic = env.MIDNIGHT_WALLET_MNEMONIC;
+  if (envSeed && envMnemonic) {
+    throw new Error(
+      'Both MIDNIGHT_WALLET_SEED and MIDNIGHT_WALLET_MNEMONIC are set — unset one; they would select different wallets.',
+    );
+  }
+  if (envSeed) {
+    // Trim first: secrets pasted into env vars commonly carry stray whitespace
+    // or a trailing newline, which the pre-validation code tolerated.
+    const trimmed = envSeed.trim();
+    const hex = trimmed.startsWith('0x') || trimmed.startsWith('0X') ? trimmed.slice(2) : trimmed;
+    if (!SEED_HEX_RE.test(hex)) {
+      throw new Error(
+        'MIDNIGHT_WALLET_SEED must be 32-128 hex characters (16-64 whole bytes). ' +
+          'A Lace-compatible BIP-39 seed is 128 hex characters — or set MIDNIGHT_WALLET_MNEMONIC to pass the phrase directly.',
+      );
+    }
+    return { seed: hex, mnemonic: null, created: false };
+  }
+  if (envMnemonic) {
+    if (!isValidMnemonic(envMnemonic)) {
+      throw new Error(
+        'MIDNIGHT_WALLET_MNEMONIC is not a valid BIP-39 recovery phrase (check the words and word count).',
+      );
+    }
+    return { seed: mnemonicToSeedHex(envMnemonic), mnemonic: normalizeMnemonic(envMnemonic), created: false };
+  }
 
   const existing = loadState({ cwd });
-  const persisted = existing?.wallets?.[network]?.seed;
-  if (persisted) return persisted;
+  const persisted = existing?.wallets?.[network];
+  if (persisted?.seed) {
+    // Legacy pre-mnemonic wallets have no phrase; their seed passes through untouched.
+    return { seed: persisted.seed, mnemonic: persisted.mnemonic ?? null, created: false };
+  }
 
-  const seed = crypto.randomBytes(32).toString('hex');
+  const mnemonic = generateMnemonicPhrase();
+  const seed = mnemonicToSeedHex(mnemonic);
   const next: NetworkState = existing ?? {
     version: STATE_VERSION,
     activeNetwork: network,
@@ -225,10 +309,36 @@ export function getOrCreateSeed(network: NetworkId, opts: SeedOptions = {}): str
   next.activeNetwork = network;
   next.wallets = {
     ...next.wallets,
-    [network]: { seed, createdAt: new Date().toISOString() },
+    [network]: { seed, mnemonic, createdAt: new Date().toISOString() },
   };
   saveState(next, { cwd });
-  return seed;
+  return { seed, mnemonic, created: true };
+}
+
+/** Back-compat wrapper returning only the seed. Prefer getOrCreateWallet. */
+export function getOrCreateSeed(network: NetworkId, opts: SeedOptions = {}): string {
+  return getOrCreateWallet(network, opts).seed;
+}
+
+/**
+ * One-time backup notice for a freshly generated wallet; null otherwise.
+ * Callers print this right after obtaining credentials.
+ */
+export function formatWalletBackupNotice(
+  wallet: WalletCredentials,
+  network: NetworkId,
+): string | null {
+  if (!wallet.created || !wallet.mnemonic) return null;
+  return [
+    '',
+    `  New ${network} wallet generated. Its 24-word recovery phrase:`,
+    '',
+    `    ${wallet.mnemonic}`,
+    '',
+    '  Write this phrase down — anyone holding it controls the wallet. It also',
+    `  restores the same wallet in Lace, and is saved to ${STATE_FILE_NAME} (gitignored).`,
+    '',
+  ].join('\n');
 }
 
 export function getDeployment(network: NetworkId, opts: FsOptions = {}): DeploymentRecord | null {
