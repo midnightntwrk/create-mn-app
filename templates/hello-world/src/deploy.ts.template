@@ -6,7 +6,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { resolveNetwork, getOrCreateSeed, recordDeployment } from './network';
+import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, recordDeployment } from './network';
 import { createWallet, persistWalletState, unshieldedToken, type WalletContext } from './wallet';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocket } from 'ws';
@@ -33,7 +33,12 @@ const PRIVATE_STATE_ID = 'helloWorldPrivateState';
 // 'undeployed' (local devnet). Switch networks with: npm run network <name>
 
 const { network, config: networkConfig } = resolveNetwork();
-const SEED = getOrCreateSeed(network);
+const WALLET = getOrCreateWallet(network);
+const SEED = WALLET.seed;
+{
+  const notice = formatWalletBackupNotice(WALLET, network);
+  if (notice) console.log(notice);
+}
 
 // ─── Proof server readiness ────────────────────────────────────────────────────
 //

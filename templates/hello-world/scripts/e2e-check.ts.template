@@ -14,7 +14,7 @@ import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
-import { resolveNetwork, getOrCreateSeed, getDeployment } from '../src/network';
+import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, getDeployment } from '../src/network';
 import { createWallet, persistWalletState } from '../src/wallet';
 import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 
@@ -27,7 +27,12 @@ const PRIVATE_STATE_ID = 'helloWorldPrivateState';
 // ─── Network configuration ─────────────────────────────────────────────────────
 
 const { network, config: networkConfig } = resolveNetwork();
-const SEED = getOrCreateSeed(network);
+const WALLET = getOrCreateWallet(network);
+const SEED = WALLET.seed;
+{
+  const notice = formatWalletBackupNotice(WALLET, network);
+  if (notice) console.log(notice);
+}
 
 function fail(msg: string): never {
   console.error(`❌ e2e-check failed: ${msg}`);

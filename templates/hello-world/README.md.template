@@ -78,12 +78,33 @@ npm run network undeployed      # switch back to local devnet
 ### How wallets work across networks
 
 - `undeployed` uses a hardcoded genesis seed. Local devnet pre-funds it.
-- `preview` and `preprod` generate a fresh seed on first use and store it
-  in `.midnight-state.json` (gitignored). The seed survives switching
+- `preview` and `preprod` generate a fresh wallet on first use: a 24-word
+  BIP-39 recovery phrase (printed once) plus its derived seed, both stored
+  in `.midnight-state.json` (gitignored). The wallet survives switching
   networks — switch back later and your funded wallet returns.
-- **Back up your seed** if you fund a public-network wallet you care
-  about. Open `.midnight-state.json` and copy the relevant
-  `wallets.<network>.seed` value to a safe place.
+- **Back up your recovery phrase** if you fund a public-network wallet you
+  care about. It is printed when the wallet is created and kept in
+  `.midnight-state.json` under `wallets.<network>.mnemonic`. Anyone holding
+  the phrase controls the wallet.
+- Wallets created before mnemonic support keep working from their stored
+  `seed`; they just have no phrase to import into Lace.
+
+### Using the same wallet as Lace
+
+Seeds are derived with the standard BIP-39 `mnemonicToSeed` step — the same
+convention Lace uses — so identity is portable in both directions:
+
+- **Bring your Lace wallet here**: pass your recovery phrase via the
+  `MIDNIGHT_WALLET_MNEMONIC` env var — the derived addresses match Lace.
+  To keep the phrase out of your shell history, enter it with a hidden
+  prompt instead of typing it inline:
+
+  ```bash
+  read -s MIDNIGHT_WALLET_MNEMONIC && export MIDNIGHT_WALLET_MNEMONIC
+  npm run deploy
+  ```
+- **Take a scaffold wallet to Lace**: restore Lace from the 24-word phrase
+  in `.midnight-state.json`.
 
 ### Funding a public-network wallet
 
@@ -106,7 +127,8 @@ suffix — they apply to whichever network is active for the run):
 
 | Variable | Effect |
 |---|---|
-| `MIDNIGHT_WALLET_SEED` | Use this seed instead of generating/persisting one. Useful for CI with a pre-funded wallet. |
+| `MIDNIGHT_WALLET_SEED` | Use this hex seed (32-128 hex chars; a Lace-compatible BIP-39 seed is 128) instead of generating/persisting one. Useful for CI with a pre-funded wallet. |
+| `MIDNIGHT_WALLET_MNEMONIC` | Use this BIP-39 recovery phrase instead of generating a wallet — e.g. your Lace phrase, for the same addresses as Lace. Not persisted. Set only one of seed/mnemonic. |
 | `MIDNIGHT_INDEXER_URL` | Override the indexer GraphQL URL. |
 | `MIDNIGHT_INDEXER_WS_URL` | Override the indexer WS URL. |
 | `MIDNIGHT_NODE_URL` | Override the node RPC URL. |

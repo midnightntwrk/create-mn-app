@@ -3,15 +3,23 @@ import fs from "fs-extra";
 import path from "node:path";
 import os from "node:os";
 import { execSync } from "node:child_process";
+import { pbkdf2Sync } from "node:crypto";
 import {
   loadState,
   saveState,
   parseNetworkFlag,
   resolveNetwork,
   getOrCreateSeed,
+  getOrCreateWallet,
+  generateMnemonicPhrase,
+  isValidMnemonic,
+  mnemonicToSeedHex,
+  normalizeMnemonic,
+  formatWalletBackupNotice,
   getDeployment,
   recordDeployment,
   setActiveNetwork,
+  GENESIS_SEED,
   NETWORK_CONFIGS,
   STATE_FILE_NAME,
   STATE_VERSION,
@@ -125,6 +133,22 @@ describe("network.ts — state file", () => {
       saveState(a, { cwd });
       saveState(b, { cwd });
       expect(loadState({ cwd })).toEqual(b);
+    });
+
+    it("writes the state file owner-only (0600) since it holds wallet secrets", () => {
+      if (process.platform === "win32") return; // POSIX modes don't apply
+      const cwd = tmpCwd();
+      saveState(
+        {
+          version: STATE_VERSION,
+          activeNetwork: "preview",
+          wallets: {},
+          deployments: {},
+        },
+        { cwd },
+      );
+      const mode = fs.statSync(path.join(cwd, STATE_FILE_NAME)).mode & 0o777;
+      expect(mode).toBe(0o600);
     });
 
     it("formats output with 2-space indent (human-readable)", () => {
@@ -258,9 +282,6 @@ describe("network.ts — state file", () => {
   });
 
   describe("getOrCreateSeed", () => {
-    const GENESIS_SEED =
-      "0000000000000000000000000000000000000000000000000000000000000001";
-
     it("returns the hardcoded genesis seed for undeployed", () => {
       const cwd = tmpCwd();
       expect(getOrCreateSeed("undeployed", { env: {}, cwd })).toBe(
@@ -276,12 +297,43 @@ describe("network.ts — state file", () => {
 
     it("uses MIDNIGHT_WALLET_SEED env var when set, no state write", () => {
       const cwd = tmpCwd();
+      const envSeed = "ab".repeat(32); // 64 hex chars = 32 bytes
       const seed = getOrCreateSeed("preview", {
-        env: { MIDNIGHT_WALLET_SEED: "0xfromEnv" },
+        env: { MIDNIGHT_WALLET_SEED: envSeed },
         cwd,
       });
-      expect(seed).toBe("0xfromEnv");
+      expect(seed).toBe(envSeed);
       expect(fs.existsSync(path.join(cwd, STATE_FILE_NAME))).toBe(false);
+    });
+
+    it("strips an optional 0x prefix from MIDNIGHT_WALLET_SEED", () => {
+      const cwd = tmpCwd();
+      const seed = getOrCreateSeed("preview", {
+        env: { MIDNIGHT_WALLET_SEED: `0x${"cd".repeat(32)}` },
+        cwd,
+      });
+      expect(seed).toBe("cd".repeat(32));
+    });
+
+    it("trims surrounding whitespace/newlines from MIDNIGHT_WALLET_SEED", () => {
+      const cwd = tmpCwd();
+      const seed = getOrCreateSeed("preview", {
+        env: { MIDNIGHT_WALLET_SEED: `  ${"ef".repeat(32)}\n` },
+        cwd,
+      });
+      expect(seed).toBe("ef".repeat(32));
+    });
+
+    it.each([
+      ["non-hex", "not-a-seed"],
+      ["odd length", "abc"],
+      ["too short (below 16 bytes)", "ab".repeat(15)],
+      ["too long (above 64 bytes)", "ab".repeat(65)],
+    ])("rejects MIDNIGHT_WALLET_SEED with %s", (_label, bad) => {
+      const cwd = tmpCwd();
+      expect(() =>
+        getOrCreateSeed("preview", { env: { MIDNIGHT_WALLET_SEED: bad }, cwd }),
+      ).toThrow(/MIDNIGHT_WALLET_SEED/);
     });
 
     it("returns persisted seed for non-undeployed when state file has one", () => {
@@ -303,12 +355,13 @@ describe("network.ts — state file", () => {
       expect(getOrCreateSeed("preview", { env: {}, cwd })).toBe("0xpersisted");
     });
 
-    it("generates and persists a 64-char hex seed when none exists for non-undeployed", () => {
+    it("generates and persists a 128-char BIP-39 seed + mnemonic when none exists for non-undeployed", () => {
       const cwd = tmpCwd();
       const seed = getOrCreateSeed("preview", { env: {}, cwd });
-      expect(seed).toMatch(/^[0-9a-f]{64}$/);
+      expect(seed).toMatch(/^[0-9a-f]{128}$/);
       const state = loadState({ cwd });
       expect(state?.wallets?.preview?.seed).toBe(seed);
+      expect(state?.wallets?.preview?.mnemonic?.split(" ")).toHaveLength(24);
       expect(state?.activeNetwork).toBe("preview");
     });
 
@@ -330,6 +383,142 @@ describe("network.ts — state file", () => {
       expect(state?.wallets?.preview?.seed).toBe("0xexisting");
       expect(state?.deployments?.preview?.address).toBe("a");
       expect(state?.wallets?.preprod?.seed).toBe(seed);
+    });
+  });
+
+  describe("mnemonic-first wallet (BIP-39)", () => {
+    // Canonical BIP-39 vector: all-zero entropy, empty passphrase. The
+    // expected seed locks derivation to standard mnemonicToSeed — if anyone
+    // swaps in mnemonicToEntropy (which "works" but breaks Lace parity),
+    // this fails.
+    const VECTOR_MNEMONIC =
+      "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    const VECTOR_SEED =
+      "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4";
+
+    it("derives the canonical BIP-39 seed for the standard test vector", () => {
+      expect(mnemonicToSeedHex(VECTOR_MNEMONIC)).toBe(VECTOR_SEED);
+    });
+
+    it("matches an independent PBKDF2-HMAC-SHA512 derivation", () => {
+      const independent = pbkdf2Sync(
+        VECTOR_MNEMONIC.normalize("NFKD"),
+        "mnemonic",
+        2048,
+        64,
+        "sha512",
+      ).toString("hex");
+      expect(mnemonicToSeedHex(VECTOR_MNEMONIC)).toBe(independent);
+    });
+
+    it("normalizes whitespace and case before validation and derivation", () => {
+      const messy = `  ${VECTOR_MNEMONIC.toUpperCase().replace(/ /g, "   ")}  `;
+      expect(normalizeMnemonic(messy)).toBe(VECTOR_MNEMONIC);
+      expect(isValidMnemonic(messy)).toBe(true);
+      expect(mnemonicToSeedHex(messy)).toBe(VECTOR_SEED);
+    });
+
+    it("generates 24-word phrases that validate and derive 128-char seeds", () => {
+      const phrase = generateMnemonicPhrase();
+      expect(phrase.split(" ")).toHaveLength(24);
+      expect(isValidMnemonic(phrase)).toBe(true);
+      expect(mnemonicToSeedHex(phrase)).toMatch(/^[0-9a-f]{128}$/);
+      expect(generateMnemonicPhrase()).not.toBe(phrase);
+    });
+
+    it("rejects tampered phrases via the checksum", () => {
+      expect(
+        isValidMnemonic(VECTOR_MNEMONIC.replace(/about$/, "abandon")),
+      ).toBe(false);
+      expect(
+        isValidMnemonic(
+          `zebra ${VECTOR_MNEMONIC.split(" ").slice(1).join(" ")}`,
+        ),
+      ).toBe(false);
+    });
+
+    it("getOrCreateWallet returns genesis for undeployed without creating", () => {
+      const cwd = tmpCwd();
+      const w = getOrCreateWallet("undeployed", { env: {}, cwd });
+      expect(w).toEqual({ seed: GENESIS_SEED, mnemonic: null, created: false });
+      expect(fs.existsSync(path.join(cwd, STATE_FILE_NAME))).toBe(false);
+    });
+
+    it("getOrCreateWallet generates once, then restores with created=false", () => {
+      const cwd = tmpCwd();
+      const first = getOrCreateWallet("preview", { env: {}, cwd });
+      expect(first.created).toBe(true);
+      expect(first.mnemonic?.split(" ")).toHaveLength(24);
+      expect(first.seed).toBe(mnemonicToSeedHex(first.mnemonic as string));
+      const again = getOrCreateWallet("preview", { env: {}, cwd });
+      expect(again).toEqual({ ...first, created: false });
+    });
+
+    it("passes legacy pre-mnemonic wallets through untouched", () => {
+      const cwd = tmpCwd();
+      const legacySeed = "12".repeat(32);
+      saveState(
+        {
+          version: STATE_VERSION,
+          activeNetwork: "preview",
+          wallets: { preview: { seed: legacySeed, createdAt: "x" } },
+          deployments: {},
+        },
+        { cwd },
+      );
+      const w = getOrCreateWallet("preview", { env: {}, cwd });
+      expect(w).toEqual({ seed: legacySeed, mnemonic: null, created: false });
+      expect(loadState({ cwd })?.wallets?.preview).toEqual({
+        seed: legacySeed,
+        createdAt: "x",
+      });
+    });
+
+    it("uses MIDNIGHT_WALLET_MNEMONIC: derived seed, not persisted", () => {
+      const cwd = tmpCwd();
+      const w = getOrCreateWallet("preprod", {
+        env: { MIDNIGHT_WALLET_MNEMONIC: VECTOR_MNEMONIC },
+        cwd,
+      });
+      expect(w).toEqual({
+        seed: VECTOR_SEED,
+        mnemonic: VECTOR_MNEMONIC,
+        created: false,
+      });
+      expect(fs.existsSync(path.join(cwd, STATE_FILE_NAME))).toBe(false);
+    });
+
+    it("rejects an invalid MIDNIGHT_WALLET_MNEMONIC", () => {
+      const cwd = tmpCwd();
+      expect(() =>
+        getOrCreateWallet("preview", {
+          env: { MIDNIGHT_WALLET_MNEMONIC: "definitely not a phrase" },
+          cwd,
+        }),
+      ).toThrow(/MIDNIGHT_WALLET_MNEMONIC/);
+    });
+
+    it("rejects setting both MIDNIGHT_WALLET_SEED and MIDNIGHT_WALLET_MNEMONIC", () => {
+      const cwd = tmpCwd();
+      expect(() =>
+        getOrCreateWallet("preview", {
+          env: {
+            MIDNIGHT_WALLET_SEED: "ab".repeat(32),
+            MIDNIGHT_WALLET_MNEMONIC: VECTOR_MNEMONIC,
+          },
+          cwd,
+        }),
+      ).toThrow(/unset one/i);
+    });
+
+    it("formatWalletBackupNotice prints only for freshly created wallets", () => {
+      const cwd = tmpCwd();
+      const created = getOrCreateWallet("preview", { env: {}, cwd });
+      const notice = formatWalletBackupNotice(created, "preview");
+      expect(notice).toContain(created.mnemonic as string);
+      expect(notice).toContain("recovery phrase");
+      const restored = getOrCreateWallet("preview", { env: {}, cwd });
+      expect(formatWalletBackupNotice(restored, "preview")).toBeNull();
     });
   });
 
@@ -509,6 +698,6 @@ describe("network.ts CLI", { timeout: 30_000 }, () => {
     runCli(cwd, "preprod");
     const state = loadState({ cwd });
     expect(state?.activeNetwork).toBe("preprod");
-    expect(state?.wallets?.preview?.seed).toMatch(/^[0-9a-f]{64}$/);
+    expect(state?.wallets?.preview?.seed).toMatch(/^[0-9a-f]{128}$/);
   });
 });

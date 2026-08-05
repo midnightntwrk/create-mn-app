@@ -21,7 +21,7 @@ export function enableDebug() {
   debugEnabled = true;
 }
 
-export function debug(message: string, data?: any) {
+export function debug(message: string, data?: unknown) {
   if (!debugEnabled) return;
 
   console.log(chalk.gray("[debug]"), message);
