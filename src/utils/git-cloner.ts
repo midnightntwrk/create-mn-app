@@ -18,6 +18,16 @@ import fs from "fs-extra";
 import path from "path";
 import { debug } from "./debug.js";
 
+// GitHub owner/name shape. Also blocks values that could smuggle extra
+// arguments or URL segments into the git invocation.
+const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
+// Conservative subset of valid git ref names. The leading alphanumeric
+// matters: spawnSync passes args without a shell, but git itself would
+// still honor a branch like "--upload-pack=<cmd>" as an option — argument
+// injection rather than shell injection.
+const BRANCH_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+
 export class GitCloner {
   /**
    * Clone a GitHub repository with retry logic
@@ -28,6 +38,19 @@ export class GitCloner {
     branch: string = "main",
     retries: number = 3,
   ): Promise<void> {
+    // Validate before anything else — bad input should fail immediately,
+    // not burn retries.
+    if (!REPO_RE.test(repo)) {
+      throw new Error(
+        `Invalid repository "${repo}". Expected format: owner/repo`,
+      );
+    }
+    if (!BRANCH_RE.test(branch) || branch.includes("..")) {
+      throw new Error(
+        `Invalid branch name "${branch}". Branch names must start with a letter or digit and may only contain letters, digits, ".", "_", "/" and "-".`,
+      );
+    }
+
     const repoUrl = `https://github.com/${repo}.git`;
 
     const gitCheck = spawnSync("git", ["--version"], { stdio: "ignore" });
@@ -46,9 +69,20 @@ export class GitCloner {
           await fs.remove(targetPath);
         }
 
+        // "--" terminates option parsing so the positional args can never
+        // be interpreted as git options.
         const result = spawnSync(
           "git",
-          ["clone", "--depth", "1", "--branch", branch, repoUrl, targetPath],
+          [
+            "clone",
+            "--depth",
+            "1",
+            "--branch",
+            branch,
+            "--",
+            repoUrl,
+            targetPath,
+          ],
           { stdio: "pipe" },
         );
         if (result.status !== 0) {
