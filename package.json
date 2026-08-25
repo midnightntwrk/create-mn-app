@@ -20,7 +20,7 @@
     "test:coverage": "vitest run --coverage",
     "test:smoke": "npm run build && tsx src/test.ts",
     "test-local": "npm run build && npm link && npx create-mn-app test-app",
-    "clean": "rm -rf dist test-app",
+    "clean": "node scripts/clean.js",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.ts\"",
