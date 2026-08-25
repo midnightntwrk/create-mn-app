@@ -26,17 +26,23 @@ on:
         description: Pre-funded wallet seed for public-network E2E. Required when network != undeployed.
         required: false
 
+permissions: {}
+
 jobs:
   e2e:
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 45
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node 22
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  #v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: '22'
           cache: 'npm'
@@ -52,18 +58,18 @@ jobs:
         id: compact-version
         run: echo "version=$(cat .compact-version)" >> "$GITHUB_OUTPUT"
 
-      - name: Install Compact CLI
-        run: |
-          curl -fsSL https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
-          # The installer drops `compact` into ~/.local/bin
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # setup-compact-action only caches the CLI binary; the compiler toolchains
+      # it downloads live in ~/.compact/versions, so cache those separately.
+      - name: Cache Compact toolchains
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.compact
+          key: compact-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ steps.compact-version.outputs.version }}
 
-      - name: Install pinned Compact compiler
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          compact --version
-          compact update "${{ steps.compact-version.outputs.version }}"
-          compact use "${{ steps.compact-version.outputs.version }}" 2>/dev/null || true
+      - name: Setup Compact compiler
+        uses: midnightntwrk/setup-compact-action@836895c8fffbbea6bd986af2b17e8941ff29d1f8  # v1
+        with:
+          compact-version: ${{ steps.compact-version.outputs.version }}
 
       - name: Build scaffolder (source flavor)
         if: ${{ inputs.build-source }}
@@ -108,15 +114,16 @@ jobs:
 
       - name: Upload diagnostics artifact on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: e2e-diagnostics-${{ inputs.runs-on }}
+          name: e2e-diagnostics-${{ inputs.runs-on }}-${{ inputs.network }}
           path: |
             test-app/docker-ps.txt
             test-app/docker-logs.txt
             test-app/.midnight-state.json
             test-app/contracts/managed/
           if-no-files-found: ignore
+          retention-days: 7
 
       - name: Tear down devnet
         if: always()
