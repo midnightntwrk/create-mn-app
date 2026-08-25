@@ -20,7 +20,7 @@
     "test:coverage": "vitest run --coverage",
     "test:smoke": "npm run build && tsx src/test.ts",
     "test-local": "npm run build && npm link && npx create-mn-app test-app",
-    "clean": "rm -rf dist test-app",
+    "clean": "node scripts/clean.js",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -59,11 +59,11 @@
     "validate-npm-package-name": "^5.0.0"
   },
   "devDependencies": {
-    "@scure/bip39": "2.2.0",
+    "@scure/bip39": "2.3.0",
     "@types/cross-spawn": "^6.0.2",
     "@types/fs-extra": "^11.0.1",
     "@types/mustache": "^4.2.2",
-    "@types/node": "^20.0.0",
+    "@types/node": "^26.2.0",
     "@types/prompts": "^2.4.9",
     "@types/update-notifier": "^6.0.8",
     "@types/validate-npm-package-name": "^4.0.2",

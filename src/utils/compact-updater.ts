@@ -47,6 +47,7 @@ export class CompactUpdater {
     try {
       const versionOutput = execSync("compact compile --version", {
         encoding: "utf-8",
+        stdio: "pipe",
       }).trim();
 
       const versionMatch = versionOutput.match(/(\d+\.\d+\.\d+)/);

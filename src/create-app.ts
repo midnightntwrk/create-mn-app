@@ -697,6 +697,19 @@ async function createProject(
   }
 }
 
+/**
+ * Warn when a devnet port is already held — usually a container left running
+ * by an earlier project. Advisory only: scaffolding still succeeds, and the
+ * user can free the port any time before running setup.
+ */
+async function warnOnOccupiedDevnetPorts(): Promise<void> {
+  const occupied = await RequirementChecker.findOccupiedPorts();
+  const warning = RequirementChecker.formatOccupiedPortsWarning(occupied);
+  if (warning) {
+    console.log(`    ${chalk.yellow("⚠")} ${chalk.yellow(warning)}\n`);
+  }
+}
+
 async function createRemoteTemplate(
   projectPath: string,
   projectName: string,
@@ -721,6 +734,8 @@ async function createRemoteTemplate(
     }
 
     const allPassed = RequirementChecker.displayResults(checks);
+
+    await warnOnOccupiedDevnetPorts();
 
     if (!allPassed) {
       // Check if the issue is Compact version mismatch
@@ -854,6 +869,8 @@ async function createBundledTemplate(
       "Docker check failed - install Docker to use proof server",
     );
   }
+
+  await warnOnOccupiedDevnetPorts();
 
   // Compile initial contract
   if (!options.skipInstall) {
