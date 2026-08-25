@@ -56,3 +56,20 @@ jobs:
 
       - name: Test
         run: npm run test
+
+  # The scaffolder exists to produce a project that deploys to a Midnight
+  # network, so every PR now runs one end to end: scaffold, bring up the local
+  # devnet, compile, deploy (which registers NIGHT for DUST and waits for it),
+  # then assert against the deployed contract. ~2 minutes, and it runs
+  # alongside `test` rather than after it, so fast feedback is unaffected.
+  #
+  # This reuses the same job e2e.yml calls rather than restating its steps, so
+  # there is one definition of "deploy to a devnet and check it" to maintain.
+  devnet:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/_e2e-job.yml
+    with:
+      runs-on: ubuntu-latest
+      scaffold-command: 'node bin/create-midnight-app.js test-app -y -t hello-world --use-npm'
+      build-source: true

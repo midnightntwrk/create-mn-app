@@ -32,22 +32,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  matrix:
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        # macos-latest is intentionally excluded: GitHub-hosted macOS runners
-        # cannot start Colima ("error at 'creating and starting': exit status 1"),
-        # so the bundled devnet can't come up. Add back once we have a working
-        # Docker provisioner for those runners.
-        os: [ubuntu-latest]
-    uses: ./.github/workflows/_e2e-job.yml
-    with:
-      runs-on: ${{ matrix.os }}
-      scaffold-command: 'node bin/create-midnight-app.js test-app -y -t hello-world --use-npm'
-      build-source: true
+  # The local-devnet run lives in ci.yml now, so it happens on every PR rather
+  # than only on the paths below. What remains here is the public-network
+  # coverage, which stays path-filtered because it costs real network time.
 
   preview-check:
     runs-on: ubuntu-latest
