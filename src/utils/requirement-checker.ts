@@ -14,7 +14,19 @@
 // limitations under the License.
 
 import { execSync } from "child_process";
+import net from "net";
 import chalk from "chalk";
+
+/**
+ * Ports the bundled devnet binds (see templates/hello-world/docker-compose.yml).
+ * A container left running from an earlier project holds these, and
+ * `docker compose up` then fails with an opaque bind error.
+ */
+export const DEVNET_PORTS: ReadonlyArray<{ port: number; service: string }> = [
+  { port: 6300, service: "proof server" },
+  { port: 9944, service: "node" },
+  { port: 8088, service: "indexer" },
+];
 
 export interface RequirementCheck {
   name: string;
@@ -44,18 +56,44 @@ export class RequirementChecker {
   }
 
   /**
-   * Check Docker availability
+   * Check Docker availability, and whether its daemon is actually reachable.
+   *
+   * `docker --version` only reads the client binary, so it succeeds even when
+   * Docker Desktop is installed but not running — the failure then surfaces
+   * much later as a cryptic "Cannot connect to the Docker daemon" during
+   * setup. `docker info` is the cheapest command that round-trips to the
+   * daemon.
+   *
+   * A stopped daemon is reported as a warning rather than a missing
+   * requirement: nothing in scaffolding needs Docker, and downgrading `found`
+   * would both abort the run and hide the message (displayResults only
+   * surfaces `warning` for checks that were found).
    */
   static checkDocker(): RequirementCheck {
     try {
       const version = execSync("docker --version", {
         encoding: "utf-8",
+        stdio: "pipe",
       }).trim();
+
+      let warning: string | undefined;
+      try {
+        execSync("docker info", {
+          encoding: "utf-8",
+          stdio: "pipe",
+          timeout: 5000,
+        });
+      } catch {
+        warning =
+          "Docker is installed but its daemon is not responding. Start Docker Desktop before running setup.";
+      }
+
       return {
         name: "Docker",
         required: true,
         found: true,
         version: version.split(" ")[2]?.replace(",", ""),
+        warning,
         installUrl: "https://docs.docker.com/desktop/",
       };
     } catch {
@@ -66,6 +104,62 @@ export class RequirementChecker {
         installUrl: "https://docs.docker.com/desktop/",
       };
     }
+  }
+
+  /**
+   * Probe whether something is already listening on a local TCP port.
+   *
+   * Connecting is used rather than binding because the ports we care about are
+   * published by Docker, and a bind probe can race with (or briefly steal) a
+   * port the daemon is about to claim. A refused connection means free; a
+   * probe that neither connects nor is refused within the timeout is treated
+   * as free so a firewall can never stall scaffolding.
+   */
+  static async isPortInUse(port: number, timeoutMs = 1000): Promise<boolean> {
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      let settled = false;
+
+      const done = (inUse: boolean) => {
+        if (settled) return;
+        settled = true;
+        socket.destroy();
+        resolve(inUse);
+      };
+
+      socket.setTimeout(timeoutMs);
+      socket.once("connect", () => done(true));
+      socket.once("timeout", () => done(false));
+      socket.once("error", () => done(false));
+      socket.connect(port, "127.0.0.1");
+    });
+  }
+
+  /**
+   * Return the devnet ports that are already occupied, so the caller can warn
+   * before Docker fails to bind them.
+   */
+  static async findOccupiedPorts(
+    ports: ReadonlyArray<{ port: number; service: string }> = DEVNET_PORTS,
+  ): Promise<Array<{ port: number; service: string }>> {
+    const results = await Promise.all(
+      ports.map(async (entry) => ({
+        entry,
+        inUse: await this.isPortInUse(entry.port),
+      })),
+    );
+    return results.filter((r) => r.inUse).map((r) => r.entry);
+  }
+
+  /**
+   * Render the "these ports are taken" warning, or null when all are free.
+   */
+  static formatOccupiedPortsWarning(
+    occupied: ReadonlyArray<{ port: number; service: string }>,
+  ): string | null {
+    if (occupied.length === 0) return null;
+    const list = occupied.map((o) => `${o.port} (${o.service})`).join(", ");
+    return `Port${occupied.length > 1 ? "s" : ""} already in use: ${list}. The local devnet will fail to start until the process holding ${occupied.length > 1 ? "them" : "it"} is stopped — "docker ps" then "docker compose down -v" in the older project usually clears this.`;
   }
 
   /**
