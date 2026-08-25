@@ -28,6 +28,9 @@ export const DEVNET_PORTS: ReadonlyArray<{ port: number; service: string }> = [
   { port: 8088, service: "indexer" },
 ];
 
+/** Upper bound on the daemon probe, so a wedged Docker cannot stall the CLI. */
+export const DOCKER_INFO_TIMEOUT_MS = 5000;
+
 export interface RequirementCheck {
   name: string;
   required: boolean;
@@ -81,11 +84,10 @@ export class RequirementChecker {
         execSync("docker info", {
           encoding: "utf-8",
           stdio: "pipe",
-          timeout: 5000,
+          timeout: DOCKER_INFO_TIMEOUT_MS,
         });
-      } catch {
-        warning =
-          "Docker is installed but its daemon is not responding. Start Docker Desktop before running setup.";
+      } catch (error) {
+        warning = this.describeDaemonFailure(error);
       }
 
       return {
@@ -104,6 +106,28 @@ export class RequirementChecker {
         installUrl: "https://docs.docker.com/desktop/",
       };
     }
+  }
+
+  /**
+   * Turn a failed `docker info` into advice that matches the actual failure.
+   *
+   * All three cases leave the binary present and the daemon unusable, but they
+   * need different fixes — telling someone whose daemon is running to "start
+   * Docker Desktop" sends them the wrong way.
+   */
+  private static describeDaemonFailure(error: unknown): string {
+    const err = error as { code?: string; stderr?: string | Buffer };
+    const stderr = String(err?.stderr ?? "");
+
+    if (/permission denied/i.test(stderr)) {
+      return "Docker's daemon is running but refused the connection (permission denied). Check the socket's permissions, or add your user to the 'docker' group and start a new shell.";
+    }
+
+    if (err?.code === "ETIMEDOUT") {
+      return `Docker did not respond within ${DOCKER_INFO_TIMEOUT_MS / 1000}s. It may still be starting up — re-run once it has settled.`;
+    }
+
+    return "Docker is installed but its daemon is not responding. Start Docker Desktop before running setup.";
   }
 
   /**
@@ -169,6 +193,7 @@ export class RequirementChecker {
     try {
       const versionOutput = execSync("compact compile --version", {
         encoding: "utf-8",
+        stdio: "pipe",
       }).trim();
 
       // Extract version number (e.g., "Compactc version: 0.23.0" -> "0.23.0")

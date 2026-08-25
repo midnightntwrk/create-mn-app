@@ -13,20 +13,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Cross-platform replacement for `rm -rf dist test-app`. `rm` does not exist
-// on native Windows shells, so the previous script failed there before doing
-// any work. fs.rmSync covers both files and directories on every platform.
+// Cross-platform replacement for `rm -rf dist test-app`. `rm` does not exist on
+// native Windows shells, so the previous script failed there before doing any
+// work.
 
 const fs = require("node:fs");
 
 const targets = ["dist", "test-app"];
 
+let failed = false;
+
 for (const target of targets) {
-  // force:true already ignores missing paths; the existsSync call is only so
-  // the log reflects what actually happened.
+  // force:true already ignores missing paths; existsSync is only so the log
+  // reflects what actually happened, the way `rm -rf` stays silent.
   const existed = fs.existsSync(target);
-  fs.rmSync(target, { recursive: true, force: true });
-  if (existed) {
-    console.log(`Removed ${target}`);
+  try {
+    // Windows fails with EBUSY/EPERM when another process holds a handle on a
+    // file (an editor, Explorer, an AV scan). fs.rm retries exactly that class
+    // of error with linear backoff, but only when maxRetries is set.
+    fs.rmSync(target, {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+    if (existed) {
+      console.log(`Removed ${target}`);
+    }
+  } catch (err) {
+    // Match `rm -rf`: report, keep going, and exit non-zero at the end. Failing
+    // fast here would leave later targets behind and bury the cause in a
+    // rimraf stack trace.
+    failed = true;
+    console.error(`Failed to remove ${target}: ${err.message}`);
   }
+}
+
+if (failed) {
+  process.exit(1);
 }

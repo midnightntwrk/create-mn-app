@@ -13,10 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { execSync } from "child_process";
 import net from "node:net";
-import { RequirementChecker } from "../utils/requirement-checker";
+import {
+  RequirementChecker,
+  DOCKER_INFO_TIMEOUT_MS,
+} from "../utils/requirement-checker";
 
 vi.mock("child_process", () => ({
   execSync: vi.fn(),
@@ -39,7 +42,21 @@ async function listen(): Promise<{ port: number; close: () => Promise<void> }> {
 }
 
 describe("RequirementChecker.checkNodeVersion", () => {
-  it("passes when the running major is at or above the minimum", () => {
+  const realVersion = process.version;
+
+  /** process.version is non-writable but configurable, so redefine it. */
+  function pretendNode(version: string) {
+    Object.defineProperty(process, "version", {
+      value: version,
+      configurable: true,
+    });
+  }
+
+  afterEach(() => {
+    pretendNode(realVersion);
+  });
+
+  it("reports the running version", () => {
     const result = RequirementChecker.checkNodeVersion(0);
     expect(result.name).toBe("Node.js");
     expect(result.required).toBe(true);
@@ -47,8 +64,23 @@ describe("RequirementChecker.checkNodeVersion", () => {
     expect(result.version).toBe(process.version);
   });
 
-  it("fails when the running major is below the minimum", () => {
-    expect(RequirementChecker.checkNodeVersion(999).found).toBe(false);
+  // The comparison is `major >= minVersion`, and every supported template asks
+  // for exactly 22 (templates.ts) against an engines floor of >=22.0.0 — so the
+  // equal case is the one real users land on. Pinning both sides of the
+  // boundary is what stops a `>=` regressing to `>` unnoticed.
+  it("passes on the exact minimum", () => {
+    pretendNode("v22.0.0");
+    expect(RequirementChecker.checkNodeVersion(22).found).toBe(true);
+  });
+
+  it("fails one major below the minimum", () => {
+    pretendNode("v21.9.9");
+    expect(RequirementChecker.checkNodeVersion(22).found).toBe(false);
+  });
+
+  it("passes above the minimum", () => {
+    pretendNode("v24.1.0");
+    expect(RequirementChecker.checkNodeVersion(22).found).toBe(true);
   });
 });
 
@@ -117,6 +149,50 @@ describe("RequirementChecker.checkDocker", () => {
       expect(call[1]).toMatchObject({ stdio: "pipe" });
     }
   });
+
+  it("bounds the daemon probe so a wedged Docker cannot stall the CLI", () => {
+    mockExecSync
+      .mockReturnValueOnce("Docker version 27.0.0, build abc1234")
+      .mockReturnValueOnce("Server Version: 27.0.0");
+
+    RequirementChecker.checkDocker();
+    expect(mockExecSync.mock.calls[1][1]).toMatchObject({
+      timeout: DOCKER_INFO_TIMEOUT_MS,
+    });
+  });
+
+  // A refused socket means the daemon is up and the user's permissions are
+  // wrong; "Start Docker Desktop" would send them the wrong way entirely.
+  it("names a permissions problem rather than a stopped daemon", () => {
+    mockExecSync
+      .mockReturnValueOnce("Docker version 27.0.0, build abc1234")
+      .mockImplementationOnce(() => {
+        const err = new Error("Command failed") as Error & { stderr: string };
+        err.stderr =
+          "permission denied while trying to connect to the docker API at unix:///var/run/docker.sock";
+        throw err;
+      });
+
+    const result = RequirementChecker.checkDocker();
+    expect(result.found).toBe(true);
+    expect(result.warning).toMatch(/permission denied/i);
+    expect(result.warning).not.toMatch(/Start Docker Desktop/);
+  });
+
+  it("names a slow daemon when the probe times out", () => {
+    mockExecSync
+      .mockReturnValueOnce("Docker version 27.0.0, build abc1234")
+      .mockImplementationOnce(() => {
+        const err = new Error("timed out") as Error & { code: string };
+        err.code = "ETIMEDOUT";
+        throw err;
+      });
+
+    const result = RequirementChecker.checkDocker();
+    expect(result.found).toBe(true);
+    expect(result.warning).toContain(`${DOCKER_INFO_TIMEOUT_MS / 1000}s`);
+    expect(result.warning).not.toMatch(/Start Docker Desktop/);
+  });
 });
 
 describe("RequirementChecker.isPortInUse", () => {
@@ -138,16 +214,44 @@ describe("RequirementChecker.isPortInUse", () => {
     expect(await RequirementChecker.isPortInUse(port)).toBe(false);
   });
 
-  it("settles quickly instead of blocking the scaffold", async () => {
-    const server = await listen();
-    const port = server.port;
-    await server.close();
+  // Loopback refuses a closed port immediately, so the timeout branch is
+  // unreachable over a real socket and has to be driven directly. Without
+  // these, deleting socket.setTimeout() or flipping the timeout handler to
+  // done(true) both leave the suite green — while the probe either stalls for
+  // minutes on a filtered port or calls every free port occupied.
+  describe("timeout branch", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
 
-    const start = Date.now();
-    expect(await RequirementChecker.isPortInUse(port, 150)).toBe(false);
-    // A refused connection resolves well inside the timeout; this guards
-    // against the probe ever being left to hang on the socket.
-    expect(Date.now() - start).toBeLessThan(2000);
+    function stubConnectEmitting(event: "connect" | "timeout" | "error") {
+      // Listeners are attached before connect() is called, so a microtask is
+      // late enough for them to be in place.
+      vi.spyOn(net.Socket.prototype, "connect").mockImplementation(function (
+        this: net.Socket,
+      ) {
+        queueMicrotask(() => this.emit(event));
+        return this;
+      });
+    }
+
+    it("arms the socket timeout with the requested bound", async () => {
+      const setTimeoutSpy = vi.spyOn(net.Socket.prototype, "setTimeout");
+      stubConnectEmitting("error");
+
+      await RequirementChecker.isPortInUse(6300, 250);
+      expect(setTimeoutSpy).toHaveBeenCalledWith(250);
+    });
+
+    it("treats a timed-out probe as free rather than occupied", async () => {
+      stubConnectEmitting("timeout");
+      expect(await RequirementChecker.isPortInUse(6300, 50)).toBe(false);
+    });
+
+    it("treats a completed connection as occupied", async () => {
+      stubConnectEmitting("connect");
+      expect(await RequirementChecker.isPortInUse(6300, 50)).toBe(true);
+    });
   });
 });
 
