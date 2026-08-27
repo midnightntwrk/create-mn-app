@@ -5,9 +5,13 @@ on:
     workflows: ['Publish to NPM']
     types: [completed]
 
+permissions: {}
+
 jobs:
   matrix:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -23,6 +27,7 @@ jobs:
   preview-check:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       has-seed: ${{ steps.check.outputs.has-seed }}
     steps:
@@ -39,6 +44,8 @@ jobs:
   e2e-preview:
     needs: preview-check
     if: needs.preview-check.outputs.has-seed == 'true'
+    permissions:
+      contents: read
     uses: ./.github/workflows/_e2e-job.yml
     with:
       runs-on: ubuntu-latest
@@ -51,6 +58,7 @@ jobs:
   preprod-check:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       has-seed: ${{ steps.check.outputs.has-seed }}
     steps:
@@ -67,6 +75,8 @@ jobs:
   e2e-preprod:
     needs: preprod-check
     if: needs.preprod-check.outputs.has-seed == 'true'
+    permissions:
+      contents: read
     uses: ./.github/workflows/_e2e-job.yml
     with:
       runs-on: ubuntu-latest
