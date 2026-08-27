@@ -1,0 +1,3 @@
+# Keep line endings LF in the repo regardless of platform. Prettier checks
+# with endOfLine: "lf", so a CRLF checkout on Windows would fail format:check.
+* text=auto eol=lf
