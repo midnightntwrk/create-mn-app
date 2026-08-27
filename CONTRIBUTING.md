@@ -42,6 +42,12 @@ The CLA ensures that:
 - Git
 - A GitHub account
 
+Any OS with Node 22 works, Windows included. Contributing to this CLI — install,
+build, lint, test, clean — needs no Docker, no Compact compiler and no WSL; CI
+runs that loop on both Ubuntu and Windows. WSL is only relevant once you are
+building a Midnight DApp with the scaffolded output, which the
+[README](README.md#windows) covers.
+
 ### Development Setup
 
 1. **Fork the repository** on GitHub

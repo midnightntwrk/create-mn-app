@@ -14,6 +14,23 @@ Scaffold a Midnight Network DApp project. One command bootstraps a contract, a l
 | Node.js          | 22+      |                                                        |
 | Docker           | Compose v2 | Runs the local devnet and proof server               |
 | Compact compiler | 0.31.1   | Required for the remote examples (`battleship`, `bboard`, `leaderboard`); the CLI offers to install it for you |
+| Platform         | Linux, macOS, Windows | The CLI and the npm scripts it generates run natively on all three, and CI covers Windows. Building a Midnight DApp is a narrower story — see below |
+
+### Windows
+
+`create-mn-app` itself, and every npm script in a scaffolded project, run on
+native Windows (PowerShell or cmd.exe) as well as under WSL. That is covered by
+CI on `windows-latest`.
+
+Midnight DApp development is narrower. Per Midnight's
+[installation docs](https://docs.midnight.network/getting-started/installation),
+"Windows is not supported natively at this time, if you are using Windows,
+development through WSL is recommended." The Compact compiler in particular
+publishes no native Windows binary, so `npm run compile` — and `npm run setup`,
+which calls it — need WSL.
+
+In short: scaffold and manage a project from wherever you like; do the
+contract and devnet work inside WSL.
 
 ## Quick Start
 

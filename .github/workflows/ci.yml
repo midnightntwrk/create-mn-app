@@ -73,3 +73,85 @@ jobs:
       runs-on: ubuntu-latest
       scaffold-command: 'node bin/create-midnight-app.js test-app -y -t hello-world --use-npm'
       build-source: true
+
+  # Scope, stated so a green tick is not read as more than it is.
+  #
+  # CERTIFIES: the CLI and the npm scripts it generates work on native Windows —
+  # install, build, the unit suite, scaffolding a project, and both `clean`
+  # scripts (which replaced a Unix-only `rm -rf` that failed there; see #54, #79).
+  #
+  # DOES NOT CERTIFY: Midnight DApp development on native Windows. The Compact
+  # compiler publishes no Windows binary, so `compile` and `setup` need WSL, and
+  # the devnet end-to-end job (_e2e-job.yml) accepts ubuntu or macos only. Per
+  # Midnight's install docs, "Windows is not supported natively at this time".
+  # That boundary is documented in README.md#windows; keep the two in step.
+  windows:
+    name: Windows (CLI and npm scripts)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # lint and format:check read the same sources as the Linux job; repeating
+      # them here buys nothing and would flag every file if the runner checks
+      # out CRLF (prettier defaults to endOfLine: "lf").
+      - name: Test
+        run: npm run test
+
+      # The reason this job exists. Both clean scripts replaced a Unix-only
+      # `rm -rf`, and nothing else in CI ever runs them on Windows. This one is
+      # the higher-impact case: it ships into every scaffolded project.
+      - name: Scaffolded project's clean script
+        shell: pwsh
+        run: |
+          node bin/create-midnight-app.js test-app -y -t hello-world --use-npm --skip-install --skip-git
+          if ($LASTEXITCODE -ne 0) { throw "scaffold failed" }
+
+          Push-Location test-app
+          New-Item -ItemType Directory -Force -Path contracts/managed/hello-world | Out-Null
+          New-Item -ItemType File -Force -Path .midnight-state.json, .midnight-wallet-state | Out-Null
+
+          npm run clean
+          if ($LASTEXITCODE -ne 0) { throw "template clean exited $LASTEXITCODE" }
+
+          if (Test-Path contracts/managed)      { throw "contracts/managed survived clean" }
+          if (Test-Path .midnight-state.json)   { throw ".midnight-state.json survived clean" }
+          if (Test-Path .midnight-wallet-state) { throw ".midnight-wallet-state survived clean" }
+          if (-not (Test-Path contracts/hello-world.compact)) { throw "clean removed the contract source" }
+
+          # Second run must be a silent no-op, matching `rm -rf` semantics.
+          npm run clean
+          if ($LASTEXITCODE -ne 0) { throw "template clean is not idempotent" }
+          Pop-Location
+
+      # Last, because it deletes dist, which the scaffold step above needs.
+      - name: Repo clean script
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist, test-app | Out-Null
+
+          npm run clean
+          if ($LASTEXITCODE -ne 0) { throw "repo clean exited $LASTEXITCODE" }
+          if (Test-Path dist)     { throw "dist survived npm run clean" }
+          if (Test-Path test-app) { throw "test-app survived npm run clean" }
+
+          npm run clean
+          if ($LASTEXITCODE -ne 0) { throw "repo clean is not idempotent" }
