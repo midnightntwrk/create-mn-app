@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-06
+
+### Changed
+
+- **`hello-world` wallets are mnemonic-first (BIP-39), for Lace parity** — public-network wallets now generate a 24-word recovery phrase and derive the seed with standard `mnemonicToSeed` (empty passphrase), the same convention Lace uses, so a wallet identity is portable in both directions between a scaffolded project and Lace. Adds `@scure/bip39` and the mnemonic helpers in `network.ts`
+
+### Fixed
+
+- **`test:smoke` was broken** — the script pointed at a build artifact that no longer existed; also cleared the remaining lint warnings
+
+### Security
+
+- **`GitCloner` validates repo and branch inputs** — the `--from` path passed user input toward `git clone` without checking it, allowing option injection (for example a branch beginning `--upload-pack=`). Inputs are now validated and passed as an argument array after `--`, never through a shell
+- **Patched Dependabot alerts** — `brace-expansion` and `postcss` bumped to fixed versions
+
 ## [0.4.4] - 2026-07-15
 
 ### Changed
