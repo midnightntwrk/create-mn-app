@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-08-31
+
+### Added
+
+- **The requirements check now tells you when Docker is installed but not running** — `docker --version` only reads the client binary, so it succeeded while Docker Desktop was closed and the failure resurfaced much later as a cryptic "Cannot connect to the Docker daemon" during setup. The check now probes `docker info` and reports a stopped daemon, a socket refusing on permissions, and a probe that timed out as three different problems, each with the fix that applies. It warns rather than blocking, since nothing in scaffolding needs a running daemon
+- **Warns when a devnet port is already taken** — 6300 (proof server), 9944 (node) or 8088 (indexer) still bound is the signature of a container left running by an earlier project, and previously surfaced as an opaque Docker bind error partway through setup. Advisory only; scaffolding still completes
+
+### Fixed
+
+- **`npm run clean` works on Windows** — the script shipped in `hello-world` used a Unix-only `rm -rf`, which fails in PowerShell and cmd.exe before removing anything. Replaced with `scripts/clean.mjs`, which uses `fs.rmSync` and retries the EBUSY/EPERM that Windows raises when another process holds a handle. Closes [#54](https://github.com/midnightntwrk/create-mn-app/issues/54)
+- **`deploy` no longer hangs forever waiting for DUST** — the wait was an unbounded `firstValueFrom` on a filtered stream, so if DUST never generated the process sat silently until something external killed it. Now bounded to 5 minutes, failing with the likely causes: the node not producing blocks, the wallet holding no NIGHT, or the faucet not having funded the address
+- **Docker and Compact version probes no longer leak shell errors into the CLI output** — a missing `compact` binary printed `/bin/sh: compact: command not found` above the requirements table
+
+### Documentation
+
+- **Stated where native Windows is and is not supported.** `create-mn-app` and the npm scripts it generates run natively on Windows; the Compact compiler publishes no Windows binary, so `compile` and `setup` need WSL, per Midnight's [installation docs](https://docs.midnight.network/getting-started/installation). Covered in the README, the `hello-world` README, and CONTRIBUTING
+
+### Dependencies
+
+- `@scure/bip39` `2.2.0 → 2.3.0`, `@types/node` `20.19.23 → 26.2.0`, `vitest` `4.0.18 → 4.1.11`
+
+## [0.5.0] - 2026-08-06
+
+### Changed
+
+- **`hello-world` wallets are mnemonic-first (BIP-39), for Lace parity** — public-network wallets now generate a 24-word recovery phrase and derive the seed with standard `mnemonicToSeed` (empty passphrase), the same convention Lace uses, so a wallet identity is portable in both directions between a scaffolded project and Lace. Adds `@scure/bip39` and the mnemonic helpers in `network.ts`
+
+### Fixed
+
+- **`test:smoke` was broken** — the script pointed at a build artifact that no longer existed; also cleared the remaining lint warnings
+
+### Security
+
+- **`GitCloner` validates repo and branch inputs** — the `--from` path passed user input toward `git clone` without checking it, allowing option injection (for example a branch beginning `--upload-pack=`). Inputs are now validated and passed as an argument array after `--`, never through a shell
+- **Patched Dependabot alerts** — `brace-expansion` and `postcss` bumped to fixed versions
+
 ## [0.4.4] - 2026-07-15
 
 ### Changed
