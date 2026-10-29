@@ -1,0 +1,49 @@
+name: Deprecate on NPM
+
+# Manual, one-off workflow to mark every published version of create-mn-app as
+# deprecated. Uses the same NPM_TOKEN secret as publish.yml. Run with dry-run
+# first to check the token still authenticates.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Only check authentication and ownership; do not deprecate"
+        type: boolean
+        default: true
+      message:
+        description: "Deprecation message shown by npm on install"
+        type: string
+        default: "create-mn-app is no longer maintained. Start new Midnight projects from https://github.com/midnightntwrk/midnight-examples#learning-path"
+
+permissions: {}
+
+jobs:
+  deprecate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Check authentication
+        run: |
+          npm whoami
+          npm owner ls create-mn-app
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Deprecate all versions
+        if: ${{ !inputs.dry-run }}
+        run: npm deprecate "create-mn-app@*" "$MESSAGE"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          MESSAGE: ${{ inputs.message }}
+
+      - name: Show deprecation status
+        run: npm view create-mn-app deprecated
