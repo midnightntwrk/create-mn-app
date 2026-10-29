@@ -1,48 +1,9 @@
-# Code Owners
-
-#
-
-# This file defines the individuals or teams responsible for code in this repository.
-
-# Code owners are automatically requested for review when someone opens a pull request
-
-# that modifies code that they own.
-
-#
-
-# Learn more: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
-
-# Default owner for everything in the repo
-
-- @Olanetsoft
-
-# Core CLI and scaffolding logic
-
-/src/cli.ts @Olanetsoft
-/src/create-app.ts @Olanetsoft
-/bin/ @Olanetsoft
-
-# Template system
-
-/src/templates/ @Olanetsoft
-/src/utils/template-manager.ts @Olanetsoft
-/templates/ @Olanetsoft
-
-# Installer components
-
-/src/installers/ @Olanetsoft
-
-# Documentation
-
-/README.md @Olanetsoft
-/CONTRIBUTING.md @Olanetsoft
-/CHANGELOG.md @Olanetsoft
-
-# Configuration files
-
-package.json @Olanetsoft
-tsconfig.json @Olanetsoft
-
-# GitHub workflows and templates
-
-/.github/ @Olanetsoft
+* @midnightntwrk/mn-devrel @midnightntwrk/mn-security
+/.github/ISSUE_TEMPLATE/ @midnightntwrk/mn-security @midnightntwrk/mn-sre
+/.github/PULL_REQUEST_TEMPLATE.md @midnightntwrk/mn-security @midnightntwrk/mn-sre
+/.github/dependabot.yml @midnightntwrk/mn-security @midnightntwrk/mn-sre
+CODE_OF_CONDUCT.md @midnightntwrk/mn-security @midnightntwrk/mn-sre
+CODEOWNERS @midnightntwrk/mn-security @midnightntwrk/mn-sre
+CONTRIBUTING.md @midnightntwrk/mn-security @midnightntwrk/mn-sre
+LICENSE @midnightntwrk/mn-security @midnightntwrk/mn-sre
+SECURITY.md @midnightntwrk/mn-security @midnightntwrk/mn-sre
