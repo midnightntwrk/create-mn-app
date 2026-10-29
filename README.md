@@ -1,3 +1,10 @@
+> [!WARNING]
+> **This repository is archived and no longer maintained.**
+>
+> `create-mn-app` is no longer Midnight's project scaffolder. Its replacement lives in [midnight-examples](https://github.com/midnightntwrk/midnight-examples), Midnight's example monorepo, where every example compiles and runs against one pinned toolchain in CI.
+>
+> To start a new project, follow the [learning path](https://github.com/midnightntwrk/midnight-examples#learning-path). This repo is read-only, and the `create-mn-app` npm package will not be updated for future SDK releases.
+
 # create-mn-app
 
 Scaffold a Midnight Network DApp project. One command bootstraps a contract, a local devnet, and the SDK plumbing to deploy and call it. Public testnets are one flag away.
